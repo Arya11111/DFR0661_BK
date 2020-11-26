@@ -1,0 +1,9 @@
+1.Station
+
+send 定时发送
+recv 知道远程ip地址和端口号
+
+可以定时和多个udp主机通信
+
+send And recv
+可以知道不同主机发来的数据

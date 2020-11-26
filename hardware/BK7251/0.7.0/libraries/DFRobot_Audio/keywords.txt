@@ -1,0 +1,30 @@
+#######################################
+# Syntax Coloring Map DFRobot_Audio
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+DFRobot_Audio	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+begin	KEYWORD2
+initPlayer	KEYWORD2
+initRecorder	KEYWORD2
+setPlayMode	KEYWORD2
+playMusic	KEYWORD2
+setSpeakersVolume	KEYWORD2
+record	KEYWORD2
+playerControl	KEYWORD2
+recorderControl	KEYWORD2
+setPlaybackProgress	KEYWORD2
+getPlayerState	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+RECORD_BEGIN	LITERAL1
+RECORD_STOP	LITERAL1
