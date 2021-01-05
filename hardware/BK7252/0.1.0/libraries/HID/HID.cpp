@@ -16,10 +16,11 @@
 ** SOFTWARE.  
 */
 
-#include "USB/PluggableUSB.h"
+//#include "USB/PluggableUSB.h"
+#include "Arduino.h"
 #include "HID.h"
 
-#if defined(USBCON)
+//#if defined(USBCON)
 
 HID_& HID()
 {
@@ -41,8 +42,8 @@ int HID_::getInterface(uint8_t* interfaceCount)
 int HID_::getDescriptor(USBSetup& setup)
 {
     // Check if this is a HID Class Descriptor request
-    if (setup.bmRequestType != REQUEST_DEVICETOHOST_STANDARD_INTERFACE) { return 0; }
-    if (setup.wValueH != HID_REPORT_DESCRIPTOR_TYPE) { return 0; }
+    if (setup.request_type != REQUEST_DEVICETOHOST_STANDARD_INTERFACE) { return 0; }
+    if ((setup.wValue >> 8)&0xFF != HID_REPORT_DESCRIPTOR_TYPE) { return 0; }
 
     // In a HID Class Descriptor wIndex cointains the interface number
     if (setup.wIndex != pluggedInterface) { return 0; }
@@ -99,7 +100,7 @@ bool HID_::setup(USBSetup& setup)
     }
 
     uint8_t request = setup.bRequest;
-    uint8_t requestType = setup.bmRequestType;
+    uint8_t requestType = setup.request_type;
 
     if (requestType == REQUEST_DEVICETOHOST_CLASS_INTERFACE)
     {
@@ -122,11 +123,11 @@ bool HID_::setup(USBSetup& setup)
         if (request == HID_SET_PROTOCOL) {
             // The USB Host tells us if we are in boot or report mode.
             // This only works with a real boot compatible device.
-            protocol = setup.wValueL;
+            protocol = (setup.wValue & 0xFF);
             return true;
         }
         if (request == HID_SET_IDLE) {
-            idle = setup.wValueL;
+            idle = (setup.wValue & 0xFF);
             return true;
         }
         if (request == HID_SET_REPORT)
@@ -148,7 +149,13 @@ HID_::HID_(void) : PluggableUSBModule(1, 1, epType),
                    rootNode(NULL), descriptorSize(0),
                    protocol(1), idle(1)
 {
-    epType[0] = USB_ENDPOINT_TYPE_INTERRUPT | USB_ENDPOINT_IN(0);;
+    endPointPrams_t epArgs;
+    epArgs.params.type = USB_ENDPOINT_TYPE_INTERRUPT;
+    epArgs.params.packetSize = 64;
+    epArgs.params.index = USB_ENDPOINT_IN(0);
+    epArgs.params.iso = 0;
+    epType[0] = epArgs.epType;
+    //epType[0] = USB_ENDPOINT_TYPE_INTERRUPT | USB_ENDPOINT_IN(0);;
     PluggableUSB().plug(this);
 }
 
@@ -157,4 +164,4 @@ int HID_::begin(void)
     return 0;
 }
 
-#endif /* if defined(USBCON) */
+//#endif /* if defined(USBCON) */

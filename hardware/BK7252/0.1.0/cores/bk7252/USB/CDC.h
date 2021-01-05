@@ -6,7 +6,7 @@
 #include "USBDesc.h"
 #include "USBAPI.h"
 #include "PluggableUSB.h"
-//#include "DFRobot_queue.h"
+#include "USBCore.h"
 
 
 
@@ -101,27 +101,7 @@
 #define CDC_GET_ATM_VC_STATISTICS       0x53
 
 #define CDC_SERIAL_BUFFER_SIZE  256
-
-
-
-struct queueData{
-  struct queueData *next;
-  struct queueData *before;
-  uint8_t len;
-  uint8_t data[];
-};
-
-typedef struct queueData sQueueData_t;
-extern uint32_t cdcTXQueueData;
-extern uint32_t cdcRXQueueData;
-void dataEnqueue(uint8_t *pbuf, uint16_t len);
-sQueueData_t *dataFromHeadDequeue();
-sQueueData_t *dataFromTailDequeue();
-uint8_t getTailDataSize();
-//void dataRecvEnqueue(uint8_t *pbuf, uint16_t len);
-
-
-
+#define CDC_SERIAL_TX_BUFFER_SIZE  64
 //  CDC CS interface descriptor
 typedef struct
 {
@@ -228,7 +208,6 @@ public:
         MARK_PARITY = 3,
         SPACE_PARITY = 4,
     };
-    void handleCDCISR();
 protected:
     // Implementation of the PUSBListNode
     int getInterface(uint8_t* interfaceNum);
@@ -249,7 +228,10 @@ private:
   
   uint16_t headIndex;
   uint16_t tailIndex;
+  uint8_t _txRdyFlag;
+  uint8_t _cdcTxBufIndex;
   uint8_t cdcSerialRecvBuf[CDC_SERIAL_BUFFER_SIZE];
+  uint8_t cdcSerialSendBuf[CDC_SERIAL_TX_BUFFER_SIZE];
   uint32_t epType[3];//用于存放3个端点的类型
 };
 

@@ -20,10 +20,12 @@
 #define HID_h
 
 #include <stdint.h>
-#include <Arduino.h>
+#include "USB/USBDesc.h"
+#include "USB/USBAPI.h"
 #include "USB/PluggableUSB.h"
+#include "USB/USBCore.h"
 
-#if defined(USBCON)
+//#if defined(USBCON)
 
 #define _USING_HID
 
@@ -115,6 +117,6 @@ HID_& HID();
 
 #define D_HIDREPORT(length) { 9, 0x21, 0x01, 0x01, 0, 1, 0x22, lowByte(length), highByte(length) }
 
-#endif
+//#endif
 
 #endif

@@ -6,7 +6,7 @@
 #include "uart_pub.h"
 #define SDCARD_DEBUG
 
-#define SDCARD_SD_USING_CHOISE_1
+//#define SDCARD_SD_USING_CHOISE_1
 
 #ifdef SDCARD_DEBUG
 #define SDCARD_PRT      os_printf

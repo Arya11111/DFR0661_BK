@@ -57,6 +57,8 @@ extern "C" {
 #include "audio_pub.h"
 #include "shell.h"
 #include "drv_wlan.h"
+#include "drv_sdio_sd.h"
+#include <dfs_elm.h>
 #ifdef __cplusplus
 }
 #endif
@@ -108,8 +110,8 @@ extern const struct romfs_dirent romfs_root;
     dfs_init();
     rt_hw_gpio_init();
     PWMInit();
-    ////////rt_hw_sdcard_init();//SD卡初始化
-    ///////elm_init(); //文件系统初始化
+   rt_hw_sdcard_init();//SD卡初始化
+    elm_init(); //文件系统初始化
     //rt_hw_sys_ctrl_init();
     dfs_romfs_init();
     finsh_system_init();
@@ -141,10 +143,10 @@ extern const struct romfs_dirent romfs_root;
 	// const char *name;
     // name = dfs_filesystem_get_mounted_path(sd);
 	// if(name == NULL) rt_kprintf("no  mounit!\r\n");
-    // if(dfs_mount("sd0", "/sd", "elm", 0, 0) == 0)
-        // rt_kprintf("SD File System initialized!\n");
-    // else
-        // rt_kprintf("SD File System initialzation failed!\n");
+     if(dfs_mount("sd0", "/sd", "elm", 0, 0) == 0)
+         rt_kprintf("SD File System initialized!\n");
+     else
+         rt_kprintf("SD File System initialzation failed!\n");
 	// name = dfs_filesystem_get_mounted_path(sd);
 	// if(name != NULL) rt_kprintf("%s \r\n", name);
 #ifdef PKG_USING_EASYFLASH

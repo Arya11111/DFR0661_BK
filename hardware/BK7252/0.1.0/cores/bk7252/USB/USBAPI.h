@@ -88,6 +88,7 @@ extern uint32_t usbd_ep_queueData[16];
 void usbDataEnqueue(uint8_t ep_id, uint8_t *pBuf, uint8_t len);
 pDataQueue_t usbDataDequeue(uint8_t ep_id);
 uint32_t getDataQueueTotalSize(uint8_t ep_id);
+pDataQueue_t getDataQueueHead(uint8_t ep_id);
 
 
 void USB_SetHandler(void (*pf_isr)(void));
@@ -142,7 +143,7 @@ public:
 
     // Control EndPoint API
     uint32_t sendControl(const void *data, uint32_t len);
-    uint32_t sendControl(int /* ep */, const void *data, uint32_t len) { return sendControl(data, len); }
+    uint32_t sendControl(int ep , const void *data, uint32_t len);
     uint32_t recvControl(void *data, uint32_t len);
     uint32_t sendConfiguration(uint32_t maxlen);
     bool sendStringDescriptor(const uint8_t *string, uint32_t maxlen);
@@ -197,6 +198,8 @@ protected:
   uint32_t _ep_index;
   mihd06t _intr_irq;
   uint8_t ep0_stage;
+  uint8_t _config;
+  uint16_t _status;
 private:
     bool initialized;
 };

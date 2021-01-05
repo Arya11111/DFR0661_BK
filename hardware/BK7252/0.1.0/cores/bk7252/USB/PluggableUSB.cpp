@@ -80,7 +80,12 @@ void PluggableUSB_::handleEndpoint(int ep)
 {
     PluggableUSBModule* node;
     for (node = rootNode; node; node = node->next) {
-        node->handleEndpoint(ep);
+        //if(ep < 4)
+          //rt_kprintf("ep=%d, pluggedEndpoint=%d %d\n", ep, node->pluggedEndpoint, (node->pluggedEndpoint + node->numEndpoints));
+        if(((ep & 0x7f) >= node->pluggedEndpoint) && ((ep & 0x7f) < (node->pluggedEndpoint + node->numEndpoints)))
+            node->handleEndpoint(ep);
+        //if(ep < 4)
+          //rt_kprintf("2ep=%d, pluggedEndpoint=%d %d\n", ep, node->pluggedEndpoint, (node->pluggedEndpoint + node->numEndpoints));
     }
 }
 

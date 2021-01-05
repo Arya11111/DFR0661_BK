@@ -19,9 +19,11 @@
 #include <Arduino.h>
 
 #include "PluggableUSB.h"
-#include "CDC.h"
 #include "USBAPI.h"
 #include "USBCore.h"
+#include "CDC.h"
+#include "UD.h"
+
 
 #define USB_VID 0x3343
 #define USB_PID 0x8244
@@ -29,11 +31,8 @@
 #define IPRODUCT      0x02
 #define ISERIAL       0x03
 
-bool _dry_run = false;
-bool _pack_message = false;
-uint16_t _pack_size = 0;
-uint8_t _pack_buffer[256];
 
+bool _pack_message = false;
 
 void USB_SetHandler(void (*pf_isr)(void)){
   intc_service_register(IRQ_USB, PRI_IRQ_USB, pf_isr);
@@ -88,19 +87,12 @@ const DeviceDescriptor USB_DeviceDescriptor = D_DEVICE(0x00, 0x00, 0x00, 64, USB
 volatile uint32_t _usbConfiguration = 0;
 volatile uint32_t _usbSetInterface = 0;
 
-uint8_t usbd_ep_cache_buffer[16][512]={0x00};
-uint16_t usbd_ep_size[16]={0x00};
+uint8_t usbd_ep_cache_buffer[1][512]={0x00};
+uint16_t usbd_ep_size[1]={0x00};
 
-uint8_t usbd_ep_out_cache_buffer[16][512]={0x00};
-uint16_t usbd_ep_out_size[16]={0x00};
-uint8_t usbd_ep_recv_flag[16]={0};
-
-
-static __attribute__((__aligned__(4))) //__attribute__((__section__(".bss_hram0")))
-uint8_t udd_ep_out_cache_buffer[16][512];
- 
-static __attribute__((__aligned__(4))) //__attribute__((__section__(".bss_hram0")))
-uint8_t udd_ep_in_cache_buffer[7][512];
+uint8_t usbd_ep_out_cache_buffer[1][512]={0x00};
+uint16_t usbd_ep_out_size[1]={0x00};
+uint8_t usbd_ep_recv_flag[1]={0};
 
 // Some EP are handled using EPHanlders.
 // Possibly all the sparse EP handling subroutines will be
@@ -116,6 +108,7 @@ static uint8_t usbdTempBuffer[USB_TEMP_BUFFER_SIZE] = {0};
 static uint8_t usbdTempBufSize = 0;
 
 void usbDataEnqueue(uint8_t ep_id, uint8_t *pBuf, uint8_t len){
+  //rt_enter_critical();
   pDataQueue_t p;
   ep_id &= 0x7f;
   if((ep_id & 0x7f) > 16) return;
@@ -126,10 +119,12 @@ void usbDataEnqueue(uint8_t ep_id, uint8_t *pBuf, uint8_t len){
   if(usbdEpQueueHead[ep_id] == NULL){
       usbdEpQueueHead[ep_id] = p;
       usbdEpQueueTail[ep_id] = p;
+      //rt_kprintf("fun1=%s  id=%d len=%d\n", __func__, ep_id, len);
   }else{
       p->before = usbdEpQueueTail[ep_id];
       usbdEpQueueTail[ep_id]->next = p;
       usbdEpQueueTail[ep_id] = p;
+      //rt_kprintf("fun=%s  %d\n", __func__, ep_id);
   }
   p->ep_id = ep_id;
   p->len = len;
@@ -137,24 +132,30 @@ void usbDataEnqueue(uint8_t ep_id, uint8_t *pBuf, uint8_t len){
   memset(p->data,'\0',len+1);
   memcpy(p->data, pBuf, len);
   usbd_ep_queueData[ep_id]++;
+  //rt_exit_critical();
 }
 
 pDataQueue_t usbDataDequeue(uint8_t ep_id){
+  //rt_enter_critical();
   pDataQueue_t p = NULL;
   ep_id &= 0x7f;
   if((ep_id & 0x7f) > 16) return p;
   p = usbdEpQueueHead[ep_id];
   if(usbdEpQueueHead[ep_id] != NULL){
+      //rt_kprintf("fun=%s, id=%d len=%d, index=%d\n",__func__, ep_id,p->len,p->index);
       if(p->next != NULL){
           p->next->before = NULL;
       }
       usbdEpQueueHead[ep_id] = p->next;
       usbd_ep_queueData[ep_id]--;
   }
+  //rt_kprintf("fun1=%s, id=%d len=%d, index=%d\n",__func__, ep_id,p->len,p->index);
+  //rt_exit_critical();
   return p;
 }
 
 uint32_t getDataQueueTotalSize(uint8_t ep_id){
+  //rt_enter_critical();
   uint32_t ret = 0;
   pDataQueue_t p;
   ep_id &= 0x7f;
@@ -162,7 +163,17 @@ uint32_t getDataQueueTotalSize(uint8_t ep_id){
   for(p = usbdEpQueueHead[ep_id]; p != NULL; p = p->next){
       ret += (p->len - p->index);
   }
+  //rt_exit_critical();
   return ret;
+}
+
+pDataQueue_t getDataQueueHead(uint8_t ep_id){
+  //rt_enter_critical();
+  pDataQueue_t p = NULL;
+  ep_id &= 0x7f;
+  p = usbdEpQueueHead[ep_id];
+  //rt_exit_critical();
+  return p;
 }
 
 
@@ -192,11 +203,14 @@ uint32_t EndPoints[] =
 #define EP_ARRAY_SIZE   (sizeof(EndPoints)/sizeof(EndPoints[0]))
 USBDeviceClass::USBDeviceClass(){
   memset(&USBD, 0, sizeof(sMusb_hpcd_instance_t));
+  _config = 0;
+  _status = 0;
 }
 
 void USBDeviceClass::init(){
   uint32_t param;
   unsigned char ucUSBIntStatus;
+  
 #ifdef PIN_LED_TXL
   txLEDPulse = 0;
   pinMode(PIN_LED_TXL, OUTPUT);
@@ -287,7 +301,8 @@ void USBDeviceClass::init(){
   USBD_DEBUG("attach end");
   
   initialized = 1;
-  SerialUSB.begin(0);
+ SerialUSB.begin(0);
+ UD.begin();
 #ifdef CDC_ENABLED
    // SerialUSB.begin(0);
 #endif
@@ -383,12 +398,17 @@ uint32_t USBDeviceClass::sendControl(const void* _data, uint32_t len)
   return length;
 }
 
-
-
-//uint8_t usbd_ep_out_cache_buffer[16][512]={0x00};
-//uint16_t usbd_ep_out_size[16]={0x00};
-//uint8_t usbd_ep_recv_flag[16]={0};
-
+uint32_t USBDeviceClass::sendControl(int ep , const void *data, uint32_t len){
+  //rt_enter_critical();
+  uint8_t ep_index = ep & 0x7f;
+  USBD.in_ep[ep_index].buffer = (uint8_t *)data;
+  USBD.in_ep[ep_index].remain_size = len;
+  USBD.in_ep[ep_index].transfer_size = (len > USBD.in_ep[ep_index].max_packet_size) ? USBD.in_ep[ep_index].max_packet_size : len;
+  len = epWrite(ep_index,USBD.in_ep[ep_index].buffer, USBD.in_ep[ep_index].transfer_size);
+  USBD.in_ep[ep_index].transfer_size = len;
+  //rt_exit_critical();
+  return len;
+}
 
 uint32_t USBDeviceClass::recvControl(void *_data, uint32_t len)
 {
@@ -423,24 +443,6 @@ uint32_t USBDeviceClass::recvControl(void *_data, uint32_t len)
           
       }
   }
-  
-  /*while(len){
-      while(!usbd_ep_recv_flag[0]){  
-         USBD_DEBUG("fun=%s\n", __func__);
-      }
-      USBD_DEBUG("fun=%s, 0x%d, 0x%d, 0x%d\n", __func__, usbd_ep_recv_flag[0], usbd_ep_out_size[0]);
-      if(usbd_ep_out_size[0] > len) usbd_ep_out_size[0] = len;
-      
-      memcpy(data+index, usbd_ep_out_cache_buffer[0], usbd_ep_out_size[0]);
-      len -= usbd_ep_out_size[0];
-      index += usbd_ep_out_size[0];
-      memset(usbd_ep_out_cache_buffer[0],0,512);
-      usbd_ep_out_size[0] = 0;
-      usbd_ep_recv_flag[0] = 0;
-      USBD.hmusb->mode.peripheral.csr0_tx_csr1.csr0.serviced_rx_pkt_rdy = 1;
-  }
-  ep0_stage = MUSB_STAGE_SETUP;
-  USBD.hmusb->mode.peripheral.csr0_tx_csr1.csr0.data_end = 1;*/
   return 0;
 }
 
@@ -525,19 +527,27 @@ uint32_t USBDeviceClass::available(uint32_t ep)
 // Return number of bytes read
 uint32_t USBDeviceClass::recv(uint32_t ep, void *_data, uint32_t len)
 {
-  if (!_usbConfiguration)
-      return -1;
-  USBD.hmusb->index = ep & 0x7F;
-  
-  _data = USBD.in_ep[0].buffer;
-// #ifdef PIN_LED_RXL
-  // if (rxLEDPulse == 0)
-      // digitalWrite(PIN_LED_RXL, LOW);
-
-  // rxLEDPulse = TX_RX_LED_PULSE_MS;
-// #endif
-
-  return 0;
+  pDataQueue_t p;
+  uint32_t queueSize = getDataQueueTotalSize((uint8_t)ep);
+  if(!queueSize) return 0;
+  uint32_t actLen = (len > queueSize) ? queueSize : len;
+  uint8_t *pBuf = (uint8_t *)_data;
+  uint32_t total = 0;
+  len = actLen;
+  while(actLen){
+      p = usbdEpQueueHead[ep & 0x7f];
+      queueSize = p->len - p->index;
+      if(queueSize <= actLen) p = usbDataDequeue((uint8_t)ep);
+      //rt_kprintf("+++size=%d, act=%d", queueSize, )
+      len = (queueSize > actLen) ? actLen : queueSize;
+      memcpy(pBuf, p->data+p->index, len);
+      pBuf += len;
+      p->index += len;
+      if(queueSize <= actLen) free(p);
+      actLen -= len;
+      total += len;
+  }
+  return total;
 }
 
 uint16_t USBDeviceClass::recv(uint32_t ep, uint8_t *data, uint16_t &head, uint16_t &tail, uint16_t total){
@@ -611,18 +621,12 @@ static char LastTransmitTimedOut[7] = {
 // Blocking Send of data to an endpoint
 uint32_t USBDeviceClass::send(uint32_t ep, const void *data, uint32_t len)
 {
-#ifdef PIN_LED_TXL
-    if (txLEDPulse == 0)
-        digitalWrite(PIN_LED_TXL, LOW);
-
-    txLEDPulse = TX_RX_LED_PULSE_MS;
-#endif
-  return 0;
+  return sendControl((int)ep , data, len);
 }
 
 uint32_t USBDeviceClass::armSend(uint32_t ep, const void* data, uint32_t len)
 {
-  return 0;
+  return sendControl((int)ep , data, len);
 }
 
 void USBDeviceClass::sendZlp(uint32_t ep)
@@ -632,7 +636,7 @@ void USBDeviceClass::sendZlp(uint32_t ep)
 
 void USBDeviceClass::ISRHandler()
 {
-  USBD_DEBUG("irq\r\n");
+  //USBD_DEBUG1("irq\r\n");
   uint32_t ep_index    = 0;
   uint32_t read_len = 0;
   _intr_irq = USBD.hmusb->intr_usb;
@@ -644,6 +648,7 @@ void USBDeviceClass::ISRHandler()
   _rx_irq <<= 8;
   _rx_irq |= USBD.hmusb->intr_rx_1;
   
+  //USBD_DEBUG1("irq tx=0x%x, rx=0x%d\r\n",_tx_irq, _rx_irq);
   if(_intr_irq.babble_reset){
       USBD_DEBUG("irq reset\r\n");
       USBD.hmusb->faddr = 0;
@@ -693,13 +698,13 @@ void USBDeviceClass::ISRHandler()
                 readFIFO(0, (uint8_t *)&USBD.setup_pkt, read_len);
                 #if 1
                 // /*USB标准请求，8个字节*/
-                USBD_DEBUG1("=====================================\n");
-                USBD_DEBUG1("request_type = 0x%X\n",USBD.setup_pkt.request_type);
-                USBD_DEBUG1("bRequest = 0x%X\n",USBD.setup_pkt.bRequest);
-                USBD_DEBUG1("wValue = 0x%X\n",USBD.setup_pkt.wValue);
-                USBD_DEBUG1("wIndex = 0x%X\n",USBD.setup_pkt.wIndex);
-                USBD_DEBUG1("wLength = 0x%X\n",USBD.setup_pkt.wLength);
-                USBD_DEBUG1("=====================================\n");
+                USBD_DEBUG("=====================================\n");
+                USBD_DEBUG("request_type = 0x%X\n",USBD.setup_pkt.request_type);
+                USBD_DEBUG("bRequest = 0x%X\n",USBD.setup_pkt.bRequest);
+                USBD_DEBUG("wValue = 0x%X\n",USBD.setup_pkt.wValue);
+                USBD_DEBUG("wIndex = 0x%X\n",USBD.setup_pkt.wIndex);
+                USBD_DEBUG("wLength = 0x%X\n",USBD.setup_pkt.wLength);
+                USBD_DEBUG("=====================================\n");
                 #endif
                 
                 if(USBD.setup_pkt.wLength != 0){/*如果标准请求需要请求的数据不为0，则代表控制传输的过程由数据事务的产生*/
@@ -788,14 +793,31 @@ void USBDeviceClass::ISRHandler()
       }
   }
   
-   //uint8_t usbd_ep_cache_buffer[16][512]={0x00};
-  //uint16_t usbd_ep_size[16]={0x00};
-  
+  for (ep_index = 1; ep_index < 16; ep_index++)
+  {
+    if(_tx_irq & (0x01 << ep_index)){
+         USBD.hmusb->index = ep_index;
+         //rt_kprintf("_tx_irq, ep=%d  %d  re=%d  tran=%d\n",ep_index, USBD.in_ep[ep_index].remain_size, USBD.hmusb->mode.peripheral.csr0_tx_csr1.tx_csr1.tx_pkt_rdy);
+        if(!USBD.hmusb->mode.peripheral.csr0_tx_csr1.tx_csr1.tx_pkt_rdy){
+            USBD.in_ep[ep_index].remain_size -= USBD.in_ep[ep_index].transfer_size;
+            if(USBD.in_ep[ep_index].remain_size > 0){
+                USBD.in_ep[ep_index].buffer += USBD.in_ep[ep_index].transfer_size;
+                USBD.in_ep[ep_index].transfer_size = (USBD.in_ep[ep_index].remain_size > USBD.in_ep[ep_index].max_packet_size) ? USBD.in_ep[ep_index].max_packet_size :USBD.in_ep[ep_index].remain_size;
+                epWrite(ep_index, USBD.in_ep[ep_index].buffer, USBD.in_ep[ep_index].transfer_size);
+            }else{
+                USBD.in_ep[ep_index].transfer_size = 0;
+                USBD.in_ep[ep_index].buffer = 0;
+                PluggableUSB().handleEndpoint(ep_index);
+            }
+        }
+    }
+  }
   
   for (ep_index = 1; ep_index < 16; ep_index++)
   {
     if (_rx_irq & (0x01 << ep_index)){
          USBD.hmusb->index = ep_index;
+         //USBD_DEBUG1("fun=%s ep=%d\r\n",__func__, ep_index);
          if(USBD.hmusb->mode.peripheral.rx_csr_1.rx_pkt_rdy){
              read_len = USBD.hmusb->mode.peripheral.rx_count2;
              read_len <<= 8;
@@ -806,20 +828,21 @@ void USBDeviceClass::ISRHandler()
                  readFIFO(ep_index, usbdTempBuffer, read_len);
                  
                  usbDataEnqueue(ep_index, usbdTempBuffer, read_len);
-                 rt_kprintf("read_len = %d  %d\n", read_len, usbd_ep_queueData[ep_index]);
+                 //rt_kprintf("index=%d,read_len = %d  %d  %d %d\n", read_len, usbd_ep_queueData[ep_index],getDataQueueTotalSize(ep_index),ep_index);
                  USBD.out_ep[ep_index].remain_size -= read_len;
              }
-             PluggableUSB().handleEndpoint(ep_index);
              USBD.hmusb->mode.peripheral.rx_csr_1.rx_pkt_rdy = 0;
+             PluggableUSB().handleEndpoint(ep_index);
+             
+             //USBD_DEBUG1("fun=%s ep=%d %d\r\n",__func__, ep_index, USBD.hmusb->index);
+             
+             
+             //if(USBD.hmusb->index != ep_index) USBD.hmusb->index = ep_index;
+             
          }
     }
   }
 }
-
-
-//uint8_t usbd_ep_out_cache_buffer[16][512]={0x00};
-//uint16_t usbd_ep_out_size[16]={0x00};
-//uint8_t usbd_ep_recv_flag[16]={0};
 
 void USBDeviceClass::handleStandardRequest(USBSetup &setup){
   switch(setup.direction){
@@ -827,6 +850,7 @@ void USBDeviceClass::handleStandardRequest(USBSetup &setup){
         switch(setup.bRequest){
             case USB_REQ_GET_STATUS:
               USBD_DEBUG("USB_REQ_GET_STATUS\n");
+              sendControl(0 , (const void *)&_status, ((setup.wLength > 2) ? 2 : setup.wLength));
               //USBD.hmusb->mode.peripheral.csr0_tx_csr1.csr0.serviced_rx_pkt_rdy = 1;
               break;
             case USB_REQ_CLEAR_FEATURE:
@@ -851,6 +875,8 @@ void USBDeviceClass::handleStandardRequest(USBSetup &setup){
               break;
             case USB_REQ_GET_CONFIGURATION:
               USBD_DEBUG("USB_REQ_GET_CONFIGURATION\n");
+              //epSetStall(0);
+              sendControl(0 , (const void *)&_config, ((setup.wLength > 1) ? 1 : setup.wLength));
               //USBD.hmusb->mode.peripheral.csr0_tx_csr1.csr0.serviced_rx_pkt_rdy = 1;
               break;
             case USB_REQ_SET_CONFIGURATION:
@@ -941,9 +967,13 @@ void USBDeviceClass::getDescriptor(USBSetup &setup){
   if(setup.transferDirection == 1){
       //USBD.hmusb->mode.peripheral.csr0_tx_csr1.csr0.serviced_rx_pkt_rdy = 1;//清除setup接收包
       switch(setup.wValue >> 8){
-          case USB_DESC_TYPE_DEVICE:
+          case USB_DESC_TYPE_DEVICE:{
               USBD_DEBUG("USB_DESC_TYPE_DEVICE\n");
-              getDeviceDescriptor(setup);
+              // int ret = PluggableUSB().getDescriptor(setup);
+              // if (ret != 0) {
+                 // return;
+              // }
+          getDeviceDescriptor(setup);}
               break;
           case USB_DESC_TYPE_CONFIGURATION:
               USBD_DEBUG("USB_DESC_TYPE_CONFIGURATION\n");
@@ -995,6 +1025,7 @@ void USBDeviceClass::getConfigDescriptor(USBSetup &setup){
   uint8_t interfaceNums = getInterfacesInfo(&total);//配置描述符的接口数量
   ConfigDescriptor config = D_CONFIG((uint16_t)(total + sizeof(ConfigDescriptor)), interfaceNums);
   memcpy(usbd_ep_cache_buffer[0], &config, sizeof(ConfigDescriptor));
+  _config = 1;
   size = (setup.wLength > usbd_ep_size[0]) ? usbd_ep_size[0] : setup.wLength;
   USBD.in_ep[0].remain_size =size;
   USBD.in_ep[0].transfer_size = (size > USBD.in_ep[0].max_packet_size) ? USBD.in_ep[0].max_packet_size : size;
@@ -1123,16 +1154,21 @@ void USBDeviceClass::writeFIFO(int ep_index, uint8_t * data, uint32_t size){
 }
 
 bool USBDeviceClass::epFIFOIsNotEmpty(uint8_t ep_addr){
+  uint8_t epIndex = USBD.hmusb->index;
   USBD.hmusb->index = ep_addr & 0x7f;
+  int ret = 0;
   if(ep_addr & 0x7f){
-     return USBD.hmusb->mode.peripheral.csr0_tx_csr1.tx_csr1.fifo_not_empty;
+     ret = USBD.hmusb->mode.peripheral.csr0_tx_csr1.tx_csr1.fifo_not_empty;
   }
-   return 0;
+  //rt_kprintf("empty=%d, 0x%x, %d\n", ret, ep_addr, epIndex);
+  USBD.hmusb->index = epIndex;
+   return ret;
 }
 uint32_t USBDeviceClass::epWrite(uint8_t ep_addr, void *buffer, uint32_t size){
   mi_d11t value;
   *((m_reg_t *)(&value)) = 0;
   USBD.hmusb->index = ep_addr & 0x7f;
+  
   //if(size > USBD.in_ep[ep_addr & 0x7f].max_packet_size) return 0;
   //USBD_DEBUG("fun=%s, %d\n", __func__, size);
   if ((ep_addr & 0x7f) == 0)
@@ -1219,7 +1255,7 @@ int USBDeviceClass::epClearStall(uint8_t ep_addr){
 }
 
 int USBDeviceClass::epOpen(uint8_t ep_addr, uint8_t max_packet_size, uint8_t is_iso){
-  USBD_DEBUG("%s,ep_addr=0x%X,is_iso=0x%X\n",__func__,ep_addr,is_iso);
+  //USBD_DEBUG1("%s,ep_addr=0x%X,is_iso=0x%X\n",__func__,ep_addr,is_iso);
   USBD.hmusb->index = ep_addr & 0x7f;
   if(ep_addr & 0x80){
       USBD.in_ep[(ep_addr & 0x7f)].is_iso = is_iso;
