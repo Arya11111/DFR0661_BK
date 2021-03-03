@@ -132,6 +132,7 @@ typedef struct __attribute__((packed)) {
 } USBSetup;
 
 //81 06 00 22 00 00 6F 00
+//81 06 00 22 00 00 A5 00
 
 
 
@@ -146,34 +147,24 @@ typedef struct musb_hpcd_instance{
 extern sMusb_hpcd_instance_t USBD;
 class USBDeviceClass {
 public:
-    USBDeviceClass();
+  USBDeviceClass();
 
-    // USB Device API
-    void init();
-    bool end();
-    bool attach();
-    bool detach();
-    void setAddress(uint32_t addr);
+  // USB Device API
+  void init();
+  bool end();
+  bool attach();
+  bool detach();
+  void setAddress(uint32_t addr);
 
-    bool configured();
-    bool connected();
-
-    void standby();
-
+  bool configured();
   bool epFIFOIsNotEmpty(uint8_t ep_addr);
-
-    // Setup API
-    bool handleStandardSetup(USBSetup &setup);
-    bool handleClassInterfaceSetup(USBSetup& setup);
-    bool sendDescriptor(USBSetup &setup);
+  bool handleClassInterfaceSetup(USBSetup& setup);
 
     // Control EndPoint API
     uint32_t sendControl(const void *data, uint32_t len);
     uint32_t sendControl(int ep , const void *data, uint32_t len);
     uint32_t recvControl(void *data, uint32_t len);
-    uint32_t sendConfiguration(uint32_t maxlen);
     bool sendStringDescriptor(const uint8_t *string, uint32_t maxlen);
-    uint8_t SendInterfaces(uint32_t* total);
     void packMessages(bool val, uint16_t index = 0);
   void ISRHandler();
 
@@ -181,21 +172,16 @@ public:
     void initEndpoints(void);
   
   uint8_t send(uint8_t ep);//////
-    uint32_t send(uint32_t ep, const void *data, uint32_t len);
-    void sendZlp(uint32_t ep);
-    uint32_t recv(uint32_t ep, void *data, uint32_t len);
-    int recv(uint32_t ep);
+  uint32_t send(uint32_t ep, const void *data, uint32_t len);
+  uint32_t recv(uint32_t ep, void *data, uint32_t len);
   uint16_t recv(uint8_t ep, uint8_t *data, uint16_t &head, uint16_t &tail, uint16_t total);
-    uint32_t available(uint32_t ep);
-    void flush(uint32_t ep);
-    void clear(uint32_t ep);
-    void stall(uint32_t ep);
+  uint32_t available(uint32_t ep);
+  void flush(uint32_t ep);
   
 
     // private?
-    uint32_t armSend(uint32_t ep, const void *data, uint32_t len);
-    uint8_t armRecvCtrlOUT(uint32_t ep);
-    void parsingSteupPkt(USBSetup &setup);
+  uint32_t armSend(uint32_t ep, const void *data, uint32_t len);
+  void parsingSteupPkt(USBSetup &setup);
   void clearEp0RXPacketRdy();
   uint32_t epWrite(uint8_t ep_addr, void *buffer, uint32_t size);
 

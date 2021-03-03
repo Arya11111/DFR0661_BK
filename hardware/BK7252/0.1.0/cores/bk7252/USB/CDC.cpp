@@ -117,34 +117,12 @@ uint8_t Serial_::getShortName(char* name) {
 
 void Serial_::handleEndpoint(int ep) {
   if((ep & 0x7f) == CDC_ENDPOINT_OUT){
-      //rt_kprintf("123\n");
       usb.recv(CDC_ENDPOINT_OUT, cdcSerialRecvBuf, _rxHead, _rxTail, CDC_SERIAL_BUFFER_SIZE);
   }
       
   if((ep & 0x7f) == CDC_ENDPOINT_IN){
-      //rt_enter_critical();
-      
-     // uint8_t remainLen = epCaheRemainSpace(CDC_ENDPOINT_IN);
-      //if(remainLen && _txHead != _txTail){
-          //rt_kprintf("fun=%s, %d, %c---\n", __func__,remainLen, (char)cdcSerialSendBuf[_txHead]);
-          //writeRingDataToUsbEPCache(CDC_ENDPOINT_IN, cdcSerialSendBuf, _txHead, _txTail, CDC_SERIAL_BUFFER_SIZE);
-      //}
-      //if(getEPCacheDataSize(CDC_ENDPOINT_IN) && (!usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){
-          //rt_kprintf("fun=%s\n", __func__);
-          //usb.send(CDC_ENDPOINT_IN);
-      //}
-      //rt_kprintf("+\n");
-      // memset(cdcSerialSendBuf+_cdcTxBufIndex, 0, CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex);
-      // if(CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex){
-          // _cdcTxBufIndex += usb.recv(CDC_ENDPOINT_IN, cdcSerialSendBuf+_cdcTxBufIndex, CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex);
-      // }
-      //rt_kprintf("-\n");
-      //if(_cdcTxBufIndex && (!usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){
-          //_cdcTxBufIndex -= usb.sendControl(CDC_ENDPOINT_IN,cdcSerialSendBuf, _cdcTxBufIndex);
-      //}
-      //rt_kprintf("+-\n");
-      //rt_exit_critical();
-  } //_txRdyFlag = 1;
+
+  }
 
 }
 
@@ -183,7 +161,7 @@ bool Serial_::setup(USBSetup& setup)
       case CDC_GET_LINE_CODING:
           USBD_DEBUG("CDC_GET_LINE_CODING\n");
           //USBDevice.clearEp0RXPacketRdy();
-          USBDevice.packMessages(false);
+          //USBDevice.packMessages(false);
           USBDevice.sendControl((void*)&_usbLineInfo, ((setup.wLength > 7) ? 7 : setup.wLength));
           return true;
           break;
@@ -316,22 +294,7 @@ size_t Serial_::readBytes(char *buffer, size_t length)
       available();
   }
   return ret;
-  /*uint16_t ringLen = (CDC_SERIAL_BUFFER_SIZE + _rxTail - _rxHead)%CDC_SERIAL_BUFFER_SIZE;
-  uint16_t totalLen;
-  size_t ret = 0;
-  uint8_t *pBuf = (uint8_t *)buffer;
-  uint32_t level;
-LOOP1:
-  if(ringLen){
-      level = rt_hw_interrupt_disable();
-      ret += readDataFromRingBuffer(cdcSerialRecvBuf, _rxHead, _rxTail, CDC_SERIAL_BUFFER_SIZE, pBuf, length);
-      rt_hw_interrupt_enable(level);
-      //rt_kprintf("head = %d %d, %c\n", _rxHead,pBuf[0], (char)pBuf[0]);
-      length -= ret;
-  }
-  if(length && available())  goto LOOP1;
 
-  return ret;*/
 }
 
 void Serial_::flush(void)
@@ -340,12 +303,7 @@ void Serial_::flush(void)
   clearEPCache(CDC_ENDPOINT_IN);
   memset(cdcSerialSendBuf, 0, CDC_SERIAL_BUFFER_SIZE);
 }
-/*
-  uint32_t level;
-  level = rt_hw_interrupt_disable();
-  
-  rt_hw_interrupt_enable(level);
-*/
+
 
 //1.先查看剩余空间，如果不够，就移除
 size_t Serial_::write(const uint8_t *buffer, size_t size)
@@ -356,146 +314,6 @@ size_t Serial_::write(const uint8_t *buffer, size_t size)
   size_t r = usb.send(CDC_ENDPOINT_IN, buffer, size);
   if(r) return r;
   else return 0;
-  /*uint32_t level;
-  uint16_t ringBufDataLen, epBufDataLen, actCopyLen;
-  size_t ret = 0;
-  uint8_t *pBuf = (uint8_t *)buffer;
-  while(size){
-      if(!(usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){//
-           //level = rt_hw_interrupt_disable();
-           epBufDataLen = usb.available(CDC_ENDPOINT_IN);
-           if(epBufDataLen){
-               usb.send(CDC_ENDPOINT_IN);
-           }
-           ringBufDataLen = (CDC_SERIAL_BUFFER_SIZE + _txTail - _txHead)%CDC_SERIAL_BUFFER_SIZE;
-           if(ringBufDataLen){
-               writeRingDataToUsbEPCache(CDC_ENDPOINT_IN, cdcSerialSendBuf, _txHead, _txTail, CDC_SERIAL_BUFFER_SIZE);
-           }else{
-               actCopyLen = writeBufToRingBuffer(cdcSerialSendBuf, _txHead, _txTail, CDC_SERIAL_BUFFER_SIZE, pBuf, size);
-               pBuf += actCopyLen;
-               ret += actCopyLen;
-               size -= actCopyLen;
-           }
-           //rt_hw_interrupt_enable(level);
-      }
-
-  }
-  return ret;
-  */
-  
-  
-  //rt_enter_critical();
-  //判断usb缓存是否有空余空间
-  /*uint8_t epRemain = epCaheRemainSpace(CDC_ENDPOINT_IN);
-  uint8_t tranSize = 0;
-  uint8_t *pBuf = (uint8_t *)buffer;
-  size_t ret = 0;
-  uint32_t level;
-  if(epRemain && (_txHead != _txTail)){
-      level = rt_hw_interrupt_disable();
-      writeRingDataToUsbEPCache(CDC_ENDPOINT_IN, cdcSerialSendBuf, _txHead, _txTail, CDC_SERIAL_BUFFER_SIZE);
-      epRemain = epCaheRemainSpace(CDC_ENDPOINT_IN);
-      rt_hw_interrupt_enable(level);
-  }
-  
-  if(epRemain){
-      //rt_kprintf("func=%s, %d, size=%d, %c",__func__,epRemain, size, (char )pBuf[0]);
-      tranSize = (epRemain > size) ? size : epRemain;
-      level = rt_hw_interrupt_disable();
-      tranSize = writeDataToUsbEPCache(CDC_ENDPOINT_IN, pBuf, tranSize);
-      rt_hw_interrupt_enable(level);
-      size -= tranSize;
-      pBuf += tranSize;
-      ret += tranSize;
-      //rt_kprintf("size=%d\n", size);
-  }
-  if(size){
-      level = rt_hw_interrupt_disable();
-      ret += writeBufToRingBuffer(cdcSerialSendBuf, _txHead, _txTail, CDC_SERIAL_BUFFER_SIZE, pBuf, size);
-      rt_hw_interrupt_enable(level);
-  }
-  
-  if(getEPCacheDataSize(CDC_ENDPOINT_IN) && (!usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){
-      level = rt_hw_interrupt_disable();
-      usb.send(CDC_ENDPOINT_IN);
-      rt_hw_interrupt_enable(level);
-  }
-  //rt_exit_critical();
-  return ret;
-  
-  /*if (!(_usbLineInfo.lineState & CDC_LINESTATE_DTR)) return 0;
-  rt_uint32_t level;
-  size_t ret = size;
-  uint8_t *pBuf = (uint8_t *)buffer;
-  endPointPrams_t epArgs;
-  epArgs.epType = epType[2];
-  uint16_t len = size;
-  /////////////////////////////////////
-  rt_enter_critical();
-  memset(cdcSerialSendBuf+_cdcTxBufIndex, 0, CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex);
-  if(CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex){
-      uint8_t cpySize = CDC_SERIAL_TX_BUFFER_SIZE - _cdcTxBufIndex;
-      if(cpySize){
-          cpySize = ((CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex) > size) ? size : CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex;
-          memcpy(cdcSerialSendBuf+_cdcTxBufIndex, pBuf, cpySize);
-          pBuf += cpySize;
-          _cdcTxBufIndex += cpySize;
-          size -= cpySize;
-          ret = cpySize;
-      }
-  }
-  if(_cdcTxBufIndex && (!usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){
-      _cdcTxBufIndex -= usb.sendControl(CDC_ENDPOINT_IN, cdcSerialSendBuf, _cdcTxBufIndex);
-  }
-  rt_exit_critical();
-  ////////////////////////////////////
-  //rt_enter_critical();
-  //uint32_t queueDataBytes = getDataQueueTotalSize(CDC_ENDPOINT_IN);
-  //rt_kprintf("index=%d, que=%d, flag=%d\n", _cdcTxBufIndex, queueDataBytes, usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN));
-  /*if((_cdcTxBufIndex == 0) && (queueDataBytes == 0) && (!usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){
-      memset(cdcSerialSendBuf, 0, CDC_SERIAL_TX_BUFFER_SIZE);
-      uint8_t cpySize = (CDC_SERIAL_TX_BUFFER_SIZE > size) ? size : CDC_SERIAL_TX_BUFFER_SIZE;
-      memcpy(cdcSerialSendBuf, pBuf, cpySize);
-      pBuf += cpySize;
-      _cdcTxBufIndex += cpySize;
-      size -= cpySize;
-      _cdcTxBufIndex -= usb.sendControl(CDC_ENDPOINT_IN, cdcSerialSendBuf, _cdcTxBufIndex);
-      //rt_kprintf("@@@@@\n");
-  }
-  uint32_t freeSpace = CDC_TX_BUFFER_ACHE - getDataQueueTotalSize(CDC_ENDPOINT_IN);
-  len = (size > freeSpace) ? freeSpace : size;
-  if(len < size){
-      ret -= (size - freeSpace);
-  }*/
-  /*memset(cdcSerialSendBuf+_cdcTxBufIndex, 0, CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex);
-  if(CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex){
-      _cdcTxBufIndex += usb.recv(CDC_ENDPOINT_IN, cdcSerialSendBuf+_cdcTxBufIndex, CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex);
-      uint8_t cpySize = CDC_SERIAL_TX_BUFFER_SIZE - _cdcTxBufIndex;
-      if(cpySize){
-          cpySize = ((CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex) > size) ? size : CDC_SERIAL_TX_BUFFER_SIZE-_cdcTxBufIndex;
-          memcpy(cdcSerialSendBuf+_cdcTxBufIndex, pBuf, cpySize);
-          pBuf += cpySize;
-          _cdcTxBufIndex += cpySize;
-          size -= cpySize;
-      }
-  }
-  uint32_t freeSpace = CDC_TX_BUFFER_ACHE - getDataQueueTotalSize(CDC_ENDPOINT_IN);
-  len = (size > freeSpace) ? freeSpace : size;
-  if(len < size){
-      ret -= (size - freeSpace);
-  }
-  
-  while(len){
-    size = (len > epArgs.params.packetSize) ? epArgs.params.packetSize : len;
-    usbDataEnqueue(CDC_ENDPOINT_IN, pBuf,(uint16_t)size);
-    pBuf += size;
-    len -= size;
-  }
-  if(_cdcTxBufIndex  && (!usb.epFIFOIsNotEmpty(CDC_ENDPOINT_IN))){
-      _cdcTxBufIndex -= usb.sendControl(CDC_ENDPOINT_IN, cdcSerialSendBuf, _cdcTxBufIndex);
-  }*/
-  //rt_exit_critical();
-  //return ret;
 }
 
 size_t Serial_::write(uint8_t c) {
