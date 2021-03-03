@@ -1,214 +1,121 @@
 #include "DFRobot_Audio.h"
+#include "USB/USBCore.h"
+///* 
+static sWavHeader_t defaultWaveHeader = {
+  'R','I','F','F',
+  0,
+  'w','a','v','e',
+ 'f','m','t',' ',
+  16,
+  1,
+  1,
+  0,
+  0,
+  2,
+  16,
+  'd','a','t','a',
+  0
+};//*/
 
 
 recordManager_t recorderManger;
 uint8_t recorderMangerFlag = 0;
+static rt_thread_t musicPlayTid;
+static rt_thread_t recordThread;
+static uint8_t audioPauseFlag = 0;
+
+
+void playerMusic_thread_entry(void *param){
+  while(1){
+      if(USB_UD_ENABLE_FLAG == USB_UD_TEMPOARY_FLAG){
+          if((audioPauseFlag == 0) && player_get_state() == 2){
+              player_play();
+          }
+      }else{
+          USB_UD_ENABLE_FLAG = USB_UD_TEMPOARY_FLAG;
+          if(player_get_state() == 1) player_pause();
+      }
+      
+      rt_thread_delay(2000);
+  }
+  
+}
+
 void playerEventFunction(int event, void *user_data){
-  //rt_kprintf("+++++++%d---%d\r\n", event, *((uint8_t *)user_data));
+  if(event == PLAYER_AUDIO_PLAYBACK){
+      audioPauseFlag = 0;
+      musicPlayTid = rt_thread_create("musicplay",playerMusic_thread_entry,RT_NULL,512,10,5);
+      rt_thread_startup(musicPlayTid);
+  }else if(event == PLAYER_PLAYBACK_STOP){
+      rt_thread_delete(musicPlayTid);
+  }
   playerCBConfig_t *intCB = (playerCBConfig_t *)user_data;
   if(intCB->cb[event] != NULL) (intCB->cb[event])(event);
 }
 
-static rt_err_t record_msg_send(recordManager_t *record, void *buf, int type, int len)
-{
-    rt_err_t ret = RT_EOK;
-    struct recordMsg msg;
-
-    msg.type = type;
-    msg.arg = (uint32_t)buf;
-    msg.len = len;
-
-    //ret = rt_mq_send(record->msg, (void *)&msg, sizeof(struct recordMsg));
-    if (ret != RT_EOK)
-        rt_kprintf("[record]:send msg failed \n");
-  return ret;
-}
 #define RECORD_BUF_SIZE 1024*60
-uint8_t recordBuf[1024*60], recordIndex = 0;
-uint8_t recordBuf1[1024*60],recordIndex1 = 0;
+uint16_t _recordBuf_[1024*30];
 uint8_t recordFlag = 0;
 static void record_thread_entry(void *param){
-  //sRecord_t recorder = *((pRecord_t)param);
-  //int actualLen = 0, actSize;
-  //uint8_t flag = 0;
-  //File entry;
-  //memset(buf, 0, sizeof(buf));
-  //uint8_t *recordBuf;
   uint32_t actLen = 0,micReadLen = 0;
-  uint8_t *mempool;
   int flag = 0;
-  FILE *fp;
+  File _myFile;
+  sWavHeader_t wavHead;
   
-  //recorderManger.mpBlockSize = recorderManger.sampleRate/50*2;
-  //recorderManger.mpCnt = 20;
-  //mempool = (uint8_t *)rt_malloc(recorderManger.mpBlockSize * recorderManger.mpCnt);
-  //rt_mp_init(&(recorderManger.mp), "record_mp", mempool, recorderManger.mpBlockSize * recorderManger.mpCnt, recorderManger.mpBlockSize);
-  //recorderManger.msg = rt_mq_create("net_msg", sizeof(struct recordMsg), 12, RT_IPC_FLAG_FIFO);
   while(1){
       if(recorderManger.action == 1){
-          
           if(!flag){
               flag = 1;
-			  //remove(recorderManger.name.c_str());
-			  if(SD.exists(recorderManger.name.c_str())){
-				  Serial.println("++++");
-				  SD.remove(recorderManger.name.c_str());
-			  }
-			  // if(SD.exists(recorderManger.name.c_str())){
-				  // Serial.println("-----");
-			  // }
-              fp = fopen(recorderManger.name.c_str(), "wb");
-			  if(fp == NULL) Serial.println("ABCD");
-			  Serial.println("ok");
-              audio_device_mic_set_channel(recorderManger.channel);        /*设置adc通道*/
+              if(SD.exists(recorderManger.name.c_str())){
+                  SD.remove(recorderManger.name.c_str());
+              }
+              _myFile = SD.open(recorderManger.name.c_str(),FILE_WRITE);
+              
+              memcpy(&wavHead, &defaultWaveHeader,sizeof(sWavHeader_t));
+              wavHead.sampleRate = recorderManger.sampleRate;
+              wavHead.bytesPerSecond = (wavHead.sampleRate * 16)/8;
+              wavHead.blockAlign = (16 * 1)/8;
+              wavHead.bitsPerSample = 16;
+              _myFile.write((uint8_t *)&wavHead, sizeof(defaultWaveHeader));
+              Serial.println("ok");
+              audio_device_mic_set_channel(recorderManger.channel);       /*设置adc通道*/
               audio_device_mic_set_rate(recorderManger.sampleRate);       /*设置adc采样率*/
               audio_device_mic_open();
-              wb_vad_enter();
-			  recordFlag = 1;
-              //Serial.println("&&&&&&&&&&&&&&&&&");
+              recordFlag = 1;
           }
-          //recordBuf = (uint8_t *)rt_mp_alloc(&(recorderManger.mp), RT_WAITING_NO);
-          if(!recordBuf) {rt_thread_mdelay(20);
-             rt_kprintf("NULL\r\n");
+          if(micReadLen > RECORD_BUF_SIZE - 1024){
+              _myFile.write((uint8_t *)_recordBuf_, micReadLen);
+              micReadLen = 0;
           }
-          else{
-			  
-              int chunk_size = wb_vad_get_frame_len();
-			  if(micReadLen > RECORD_BUF_SIZE - chunk_size){
-				  Serial.println(micReadLen);
-				  fwrite(recordBuf, 1, micReadLen, fp);
-				  micReadLen = 0;
-			  }
-              actLen = audio_device_mic_read(recordBuf+micReadLen,chunk_size);
-              if(wb_vad_entry((char *)(recordBuf), actLen)){
-                  //record_msg_send(&recorderManger, recordBuf, RECORD_MSG_DATA, actLen);
-                  //int remainLen = actLen, wLen;
-                  //uint8_t *pbuf = recordBuf;
-				  //fwrite(pbuf, 1, actLen, fp);
-                  //while(remainLen){
-                      //wLen = remainLen > 1024 ? 1024 : remainLen;
-                      //fwrite(pbuf, 1, wLen, fp);
-                      //remainLen -= wLen;
-                      //pbuf += wLen;
-                      //Serial.println("+");
-                  //}
-				  micReadLen += actLen;
-              }
-			  
-              
-              //rt_kprintf("&&&&&&&&&&&&&&&&&\r\n");
-          }
+          actLen = audio_device_mic_read(((uint8_t *)_recordBuf_)+micReadLen,1024);
+          micReadLen += actLen;
       }else if(recorderManger.action == 2){
-         
           recorderManger.action = 0;
-		  if(micReadLen != 0){
-			  fwrite(recordBuf, 1, micReadLen, fp);
-		  }
+          if(micReadLen){
+              _myFile.write((uint8_t *)_recordBuf_, micReadLen);
+          }
+          micReadLen = 0;
           if(flag){
-              wb_vad_deinit();
               
               audio_device_mic_close();
-              fclose(fp);
-			  flag = 0;
-			  fp = NULL;
+              wavHead.riffSize = _myFile.size() - 8;
+              wavHead.dataSize = wavHead.riffSize - 36;
+              _myFile.seek(0);
+              _myFile.write((uint8_t *)&wavHead, sizeof(sWavHeader_t));
+              _myFile.close();
+              flag = 0;
           }
-		  recordFlag = 0;
-		   Serial.println("recorderManger.action == 2");
-          //record_msg_send(&recorderManger, 0, RECORD_MSG_CMD, 1);
+          recordFlag = 0;
+          Serial.println("recorderManger.action == 2");
+          rt_thread_delete(recordThread);
       }
-      //rt_kprintf("fun=%s %s %d %d\r\n", __func__,recorder.name.c_str(),recorder.state,recorder.entry);
-      // if(recorder.state && recorder.entry){
-            // rt_thread_delay(20);
-           // int chunk_size = wb_vad_get_frame_len();
-           
-           // while(chunk_size){
-               // memset(buf, 0, sizeof(buf));
-               // actSize = (chunk_size > 512) ? 512 : chunk_size;
-               // actualLen = audio_device_mic_read(buf,actSize);
-               // recorder.entry.write(buf, actualLen);
-               // chunk_size -= actSize;
-               //Serial.println(actualLen);
-               //Serial.println(actSize);
-           // }
-      //}
+      //rt_thread_mdelay(5);
   }
- // rt_free(mempool);
 }
 
-// static void record_pcm_entry(void *param){
-  // struct recordMsg msg;
-  // int flag = 0;
-  // FILE *fp;
-  // uint16_t *buf1;
-  // int bufInsex = 0;
-  // while(1){
-      // Serial.println("++++++++++++++++");
-      // if(rt_mq_recv(recorderManger.msg, &msg, sizeof(struct recordMsg), RT_WAITING_FOREVER) == RT_EOK){
-          //Serial.println("1111111111111");
-          // if(!flag){
-              // flag = 1;
-              // remove(recorderManger.name.c_str());
-              // fp = fopen(recorderManger.name.c_str(), "wb");
-              // fseek(fp, sizeof(char), 2);//指针移动到末尾
-              // Serial.println("+++++++++++123");
-              // Serial.println(recorderManger.name.c_str());
-              // audio_device_open();
-              // audio_device_set_rate(8000);
-          // }
-          // if(msg.type == RECORD_MSG_DATA){
-              //memcpy(recorderManger.saveBuf + recorderManger.saveLen, (void *)msg.arg, msg.len);
-              //recorderManger.saveLen += msg.len;
-              //rt_mp_free((void *)msg.arg);
-              //audio_device_write((uint8_t *)recorderManger.saveBuf, recorderManger.saveLen);
-              //Serial.print("ac=");Serial.println(msg.len);
-              //fwrite(recorderManger.saveBuf, 1, recorderManger.saveLen, fp);
-             // if(recorderManger.saveLen >= RECORD_SAVE_BUF_SIZE - recorderManger.mpBlockSize)
-             // {
-                  /*send data*/
-                  //Serial.println("0000000000000");
-               //   bufInsex= 0;
-                  //Serial.println(recorderManger.saveLen);
-                  //fwrite(recorderManger.saveBuf, 1, recorderManger.saveLen, fp);
-                  // int remainLen = recorderManger.saveLen, wLen;
-                  // uint8_t *pbuf = recordBuf;
-                  // while(remainLen){
-                      // wLen = remainLen > 1024 ? 1024 : remainLen;
-                      // fwrite(pbuf, 1, wLen, fp);
-                      // remainLen -= wLen;
-                      // pbuf += wLen;
-                      // buf1 = (uint16_t *)audio_device_get_buffer(RT_NULL);
-                      // if(bufInsex >= recorderManger.saveLen){
-                          // audio_device_put_buffer(buf1);
-                          // break;
-                      // }
-                      // memcpy(buf1,recorderManger.saveBuf+bufInsex,1024);
-                      // bufInsex += 1024;
-                      //audio_device_write((uint8_t *)buf1, 1024);
-                      // Serial.println(bufInsex);
-                      //Serial.println("+");
-                      
-                  //}
-                 // audio_device_write((uint8_t *)recorderManger.saveBuf, recorderManger.saveLen);
-                  //recorderManger.saveLen = 0;
-              //}
-          // }else if(msg.type == RECORD_MSG_CMD){
-              // if(flag){
-                  // flag = 0;
-                  // fclose(fp);
-                  // recorderMangerFlag = 0;
-                  // Serial.println("file ok!");
-              // }
-              
-          // }
-      // }
-  // }
-// }
-
 DFRobot_Audio::DFRobot_Audio(){
-  _musicPath = "/sd/";
-  memset(&_recorder, 0, sizeof(_recorder));
-  _tidRecorder = NULL;
-  memset(&recorderManger, 0, sizeof(_recorder));
+  memset(&recorderManger, 0, sizeof(recorderManger));
+  _recordCode = RECORD_CODE_ERR_NAME;
 }
 
 DFRobot_Audio::~DFRobot_Audio(){
@@ -233,7 +140,7 @@ bool DFRobot_Audio::begin(SDClass &sd){
   player_codec_beken_m4a_register();
   player_codec_opencore_amr_register();
   player_system_init();
-  audio_device_init();                   
+  audio_device_init();
   /*初始化 sound mic设备*/
   //audio_device_mic_open();
   
@@ -250,7 +157,7 @@ void DFRobot_Audio::setPlayListPath(const char *dirpath){
       if(!_sd->mkdir(dirpath)) return;
   }
   String fullpath = getFullpath(dirpath);
-  if(isDir(fullpath.c_str()) != 1) return;
+  if(bkIsDir(fullpath.c_str()) != 1) return;
   if(_musicDir != NULL) free(_musicDir);
   if((_musicDir = (char *)malloc(fullpath.length() + 1)) == NULL) return;
   strncpy(_musicDir, fullpath.c_str(), fullpath.length());
@@ -315,7 +222,6 @@ uint8_t DFRobot_Audio::getPlayMode(){
 }
 
 void DFRobot_Audio::playMusic(const char *Filename){
-  //_musicPath = "/sd";
   _musicPath = getFullpath(Filename);
   if(getPlayerState() != STOPPED)
       player_stop(); 
@@ -338,10 +244,12 @@ void DFRobot_Audio::playerControl(ePlayerCmd_t cmd){
         player_stop();
         break;
       case pause:
+        audioPauseFlag = 1;
         player_pause();
         break;
       case resume:
         player_play();
+        audioPauseFlag = 0;
         break;
       case previous:
         if(_cbConfig.num > 0){
@@ -392,6 +300,7 @@ int DFRobot_Audio::getPlayPosition(char *t){
   }
   return value;
 }
+
 int DFRobot_Audio::getMusicDuration(char *t){
   int value;
   String str;
@@ -415,6 +324,7 @@ int DFRobot_Audio::getMusicDuration(char *t){
   }
   return value;
 }
+
 const char * DFRobot_Audio::getMusicUrl(){
   return (player_get_uri() != NULL) ? player_get_uri() : NULL;
 }
@@ -428,57 +338,41 @@ void DFRobot_Audio::detachEventInterrupt(int event){
    if(event < 0 || event > 8) return;
    _cbConfig.cb[event] = NULL;
 }
-void DFRobot_Audio::initRecorder(uint32_t sampleRate, int channel){
-  //audio_device_mic_open();
-  //audio_device_mic_set_channel(channel);        /*设置adc通道*/
-  //audio_device_mic_set_rate(sampleRate);       /*设置adc采样率*/
-  //_recorder.state = RECORD_STOP;
-  //_recorder.time = 0;
-  //_recorder.name = "";
-  //_tidRecorder = rt_thread_create("recorder",record_thread_entry,NULL,1024*60,27,10);
-  //rt_thread_startup(_tidRecorder);
-  Serial.println("initRecorder");
+void DFRobot_Audio::initRecorder(uint32_t sampleRate){
   memset(&recorderManger, 0, sizeof(recordManager_t));
   recorderManger.sampleRate = sampleRate;
-  recorderManger.channel = channel;
-  rt_thread_t tid1 = rt_thread_create("recorder",record_thread_entry,NULL,1024*12,10,10);
-  if(tid1 == NULL){
-      Serial.println("AAAAAAAAAAAAAA");
-  }
-  rt_thread_startup(tid1);
-  // tid1 = rt_thread_create("record_pcm",record_pcm_entry,NULL,1024*32,10,10);
-  // if(tid1 == NULL){
-     // Serial.println("BBBBBBBBBBBB");
-  // }
-  // rt_thread_startup(tid1);
+  recorderManger.channel = 1;
 }
-
+/*对文件进行过滤，只支持录音为WAV的文件*/
 void DFRobot_Audio::record(const char *Filename){
-  recorderManger.name = getFullpath(Filename);
+  String str = String(Filename);
+  str.toLowerCase();
+  if(str.endsWith(".wav")){
+      recorderManger.name = getFullpath(Filename);
+      _recordCode = RECORD_CODE_SUCESS;
+  }else{
+      _recordCode = RECORD_CODE_ERR_NAME;
+  }
 }
 
-void DFRobot_Audio::recorderControl(uint8_t cmd){
-  switch(cmd){
-      case RECORD_BEGIN:
-         recorderManger.action = RECORD_BEGIN;
-         // if(_sd->exists((_recorder.name).c_str()))
-             // _sd->remove((_recorder.name).c_str());
-         
-         // _recorder.entry = _sd->open((_recorder.name).c_str(), FILE_WRITE|O_BINARY);
-         // wb_vad_enter();
-         // _recorder.state = cmd;
-         break;
-      case RECORD_STOP:
-         recorderManger.action = 2;
-		 audio_device_set_rate(8000);
-		 audio_device_open();
-         //recorderMangerFlag = 1;
-         //while(recordFlag);
-         // _recorder.state = cmd;
-         // _recorder.entry.close();
-         // wb_vad_deinit(); 
-         // rt_kprintf("++++++++++++++++\r\n");
-         break;
+uint8_t DFRobot_Audio::recorderControl(uint8_t cmd){
+  if(_recordCode != RECORD_CODE_ERR_NAME){
+      switch(cmd){
+          case RECORD_BEGIN:
+             recorderManger.action = RECORD_BEGIN;
+             recordThread = rt_thread_create("recorder",record_thread_entry,NULL,1024*12,10,10);
+             if(recordThread){
+                 rt_thread_startup(recordThread);
+             }else{
+                _recordCode = RECORD_CODE_THREADENABLE_FAILED;
+             }
+             break;
+          case RECORD_STOP:
+             if(_recordCode != RECORD_CODE_THREADENABLE_FAILED){
+                 recorderManger.action = 2;
+             }
+             break;
+      }
   }
-  
+  return _recordCode;
 }

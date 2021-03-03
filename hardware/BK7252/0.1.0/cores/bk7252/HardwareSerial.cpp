@@ -118,6 +118,7 @@ HardwareSerial::operator bool()
 }
 
 HardwareSerial Serial1(UART1_NAME, SERIAL_8N1, SERIAL_NRZ_NORMAL, SERIAL_ORDER_LSB);
+//#define Serial Serial1;
 //HardwareSerial1 Serial1(SERIAL_8N1, SERIAL_NRZ_NORMAL, SERIAL_ORDER_LSB);
 
 

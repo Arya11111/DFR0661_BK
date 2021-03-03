@@ -100,8 +100,8 @@
 #define CDC_SET_ATM_DEFAULT_VC          0x52
 #define CDC_GET_ATM_VC_STATISTICS       0x53
 
-#define CDC_SERIAL_BUFFER_SIZE  256
-#define CDC_SERIAL_TX_BUFFER_SIZE  64
+#define CDC_SERIAL_BUFFER_SIZE  184
+#define CDC_SERIAL_TX_BUFFER_SIZE  65
 //  CDC CS interface descriptor
 typedef struct
 {
@@ -215,6 +215,8 @@ protected:
     bool setup(USBSetup& setup);
     uint8_t getShortName(char* name);
     void handleEndpoint(int ep);
+  uint16_t writeBufToRingBuffer(uint8_t *ringBuf, uint16_t &head, uint16_t &tail, uint16_t total, uint8_t *data, uint16_t size);
+  uint16_t readDataFromRingBuffer(uint8_t *ringBuf, uint16_t &head, uint16_t &tail, uint16_t total, uint8_t *data, uint16_t size);
   
 
 friend USBDeviceClass;
@@ -230,8 +232,12 @@ private:
   uint16_t tailIndex;
   uint8_t _txRdyFlag;
   uint8_t _cdcTxBufIndex;
+  uint16_t _rxHead;
+  uint16_t _rxTail;
+  uint16_t _txHead;
+  uint16_t _txTail;
   uint8_t cdcSerialRecvBuf[CDC_SERIAL_BUFFER_SIZE];
-  uint8_t cdcSerialSendBuf[CDC_SERIAL_TX_BUFFER_SIZE];
+  uint8_t cdcSerialSendBuf[CDC_SERIAL_BUFFER_SIZE];
   uint32_t epType[3];//用于存放3个端点的类型
 };
 

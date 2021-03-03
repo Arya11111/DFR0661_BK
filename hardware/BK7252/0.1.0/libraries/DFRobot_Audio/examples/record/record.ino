@@ -43,29 +43,33 @@ void setup(){
   }
   Serial.println("initialization done.");
   
-  audio.initRecorder();
-  audio.record("/record.pcm");
-  //audio.recorderControl(RECORD_BEGIN);
+  audio.initRecorder(RECORD_SAMPLERATE_8000_HZ);
+  audio.record("/record.wav");
+  Serial.println("Ready to record");
 }
 char cmd;
 void loop(){
   while(!Serial.available());
   while(Serial.available()){
-	  char c = Serial.read();
-	  if(c == '\r' || c == '\n') continue;
-	  cmd = c;
+      char c = Serial.read();
+      if(c == '\r' || c == '\n') continue;
+      cmd = c;
   }
+  Serial.print("command = ");Serial.println(cmd);
   switch(cmd){
-	  case 'b':
-	      audio.recorderControl(RECORD_BEGIN);
-		  break;
-	  case 's':
-	      audio.recorderControl(RECORD_STOP);
-		  break;
-	   case 'p':
-       audio.playMusic("/record.pcm");
-      // audio_device_set_rate(8000);
+      case 'b':
+          if(audio.recorderControl(RECORD_BEGIN) == RECORD_CODE_SUCESS){
+              Serial.println("Recording");
+          }
+          break;
+      case 's':
+          audio.recorderControl(RECORD_STOP);
+          Serial.println("Stop and save data.");
+          break;
+       case 'p':
+       Serial.println("Playing record audio.")
+       audio.playMusic("/record.wav");
        break;
   }
-  Serial.println(cmd);
+  
 }

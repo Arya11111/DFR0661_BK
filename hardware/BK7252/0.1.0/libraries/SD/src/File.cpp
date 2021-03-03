@@ -1,28 +1,67 @@
+/*
+
+ SD - a slightly more friendly wrapper for sdfatlib
+
+ This library aims to expose a subset of SD card functionality
+ in the form of a higher level "wrapper" object.
+
+ License: GNU General Public License V3
+          (Because sdfatlib is licensed with this.)
+
+ (C) Copyright 2010 SparkFun Electronics
+
+ */
+
 #include <SD.h>
 
-File::File(void){
-  _name[0] = 0;
-  _length = 0;
-  memset(&_file, 0, sizeof(struct dfs_fd));
+/* for debugging file open/close leaks
+   uint8_t nfilecount=0;
+*/
+
+File::File(SdFile f, const char *n) {
+  // oh man you are kidding me, new() doesnt exist? Ok we do it by hand!
+  _file = (SdFile *)malloc(sizeof(SdFile)); 
+  if (_file) {
+    memcpy(_file, &f, sizeof(SdFile));
+    if(((_file->volume())->sdCard())->_type == TYPE_ONBOARD_FLASH_BK7252){
+        strncpy(_name, n, 49);
+        _name[49] = 0;
+    }else{
+        strncpy(_name, n, 12);
+        _name[12] = 0;
+    }
+    
+    
+    /* 
+       for debugging file open/close leaks
+       nfilecount++;
+       Serial.print("Created \"");
+       Serial.print(n);
+       Serial.print("\": ");
+       Serial.println(nfilecount, DEC);
+    */
+  }
 }
 
-File::File(dfs_fd fd, const char *name){
-  _file = fd;
-  strncpy(_name, name, 49);
-  _name[49] = 0;
-  _length = 0;
+File::File(void) {
+  _file = 0;
+  _name[0] = 0;
+  //Serial.print("Created empty file object");
 }
 
 // returns a pointer to the file name
 char *File::name(void) {
+  // if(((_file->volume())->sdCard())->_type == TYPE_ONBOARD_FLASH_BK7252){
+      // if(_name[0] = '/') return _name+1;
+      // else return _name;
+  // }
+  
   return _name;
 }
 
 // a directory is a special type of file
-//在没打开之前判断它是不是目录
 boolean File::isDirectory(void) {
-  if(_file.type == 2) return true;
-  else return false;
+  return (_file && _file->isDir());
 }
 
 
@@ -30,70 +69,110 @@ size_t File::write(uint8_t val) {
   return write(&val, 1);
 }
 
-size_t File::write(const uint8_t *buf, size_t size){
-  int result;
-  if(_file.path == NULL) return 0;
-  result = dfs_file_write(&_file, buf, size);
-  if (result < 0)
-  {
-      return 0;
+size_t File::write(const uint8_t *buf, size_t size) {
+  if(((_file->volume())->sdCard())->_type == TYPE_ONBOARD_FLASH_BK7252){
+      int result;
+      if(_file->_bkFd.path == NULL) return 0;
+      result = dfs_file_write(&_file->_bkFd, buf, size);
+      if (result < 0)
+      {
+          return 0;
+      }
+      return result;
+  }else{
+      size_t t;
+      if (!_file) {
+        setWriteError();
+        return 0;
+      }
+      _file->clearWriteError();
+      t = _file->write(buf, size);
+      if (_file->getWriteError()) {
+        setWriteError();
+        return 0;
+      }
+      return t;
   }
-  return result;
+  
 }
 
 int File::peek() {
-  int c = read();
-  uint32_t pos = _file.pos;
-  if(c != -1) dfs_file_lseek(&_file, pos);
-  return true;
+  if (! _file) 
+    return 0;
+  //uint32_t pos = 0;
+  uint32_t pos = _file->curPosition();
+  int c = _file->read();
+  if (c != -1){
+      _file->seekCur(-1);
+  } 
+  return c;
 }
 
 int File::read() {
-  uint8_t b;
-  return (read(&b, 1) == 1) ? b : -1;
+  if (_file) 
+    return _file->read();
+  return -1;
 }
 
+// buffered read for more efficient, high speed reading
 int File::read(void *buf, uint16_t nbyte) {
-  int result;
-  if(_file.path == NULL) return -1;
-  result = dfs_file_read(&_file, buf, nbyte);
-  if (result < 0)
-  {
-      rt_set_errno(result);
-      return -1;
-  }
-  return result;
+  if (_file) 
+    return _file->read(buf, nbyte);
+  return 0;
 }
 
 int File::available() {
+  if (! _file) return 0;
+
   uint32_t n = size() - position();
+
   return n > 0X7FFF ? 0X7FFF : n;
 }
 
 void File::flush() {
-  dfs_file_flush(&_file);
+  if (_file)
+    _file->sync();
 }
 
 boolean File::seek(uint32_t pos) {
-  if(dfs_file_lseek(&_file, pos) < 0) return false;
-  else return true;
+  if (! _file) return false;
+
+  return _file->seekSet(pos);
 }
 
 uint32_t File::position() {
-  uint32_t pos = _file.pos;
-  return pos;
+  if (! _file) return -1;
+  return _file->curPosition();
 }
 
-uint32_t File::size(){
-  return _file.size;
+uint32_t File::size() {
+  if (! _file) return 0;
+  return _file->fileSize();
 }
 
 void File::close() {
-  int result = dfs_file_close(&_file);
-  if(result >= 0) _file.flags &= ~(0x01000000);
+  if (_file) {
+    _file->close();
+    free(_file); 
+    _file = 0;
+
+    /* for debugging file open/close leaks
+    nfilecount--;
+    Serial.print("Deleted ");
+    Serial.println(nfilecount, DEC);
+    */
+  }
 }
-/*只有/sd用fd_is_open是不能判定是否打开的*/
+
 File::operator bool() {
-  return (_file.flags & 0x01000000) ? true : false;
+  if (_file){
+      return  _file->isOpen();
+  }else{
+      return false;
+  }
+    
+  
 }
+
+
 

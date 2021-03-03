@@ -1,0 +1,11 @@
+---- O_DIRECTORY Matches (10 in 3 files) ----
+SD.cpp (src):          //rt_kprintf("fun=%s, state=%d  %s, %x  %x\n", __func__, state, fullpath, O_DIRECTORY,O_RDONLY);
+SD.cpp (src):              if (f.open(_file, fullpath, O_DIRECTORY)) {
+SdFat.h (src\utility):#ifdef O_DIRECTORY
+SdFat.h (src\utility):#undef O_DIRECTORY
+SdFat.h (src\utility):#define O_DIRECTORY 0x200000
+SdFile.cpp (src\utility):  result = dfs_file_open(&d, path, O_DIRECTORY);
+SdFile.cpp (src\utility):       result = dfs_file_open(d, getFullpath(dirName).c_str(), O_DIRECTORY | bkModeChange(O_CREAT));
+SdFile.cpp (src\utility):          if(state == 1) oflag = bkModeChange(O_DIRECTORY)|bkModeChange(O_RDONLY);
+SdFile.cpp (src\utility):      // rt_kprintf("fun=%s, %x, %x\n", __func__, O_DIRECTORY, O_RDONLY);
+SdFile.cpp (src\utility):      int result = dfs_file_open(&_bkFd, "/", O_DIRECTORY);

@@ -29,6 +29,19 @@ extern "C" {
 #include "vad.h"
 //#include "DFRobot_queue.h"
 }
+//#include "USB/USBAPI.h"
+
+#define RECORD_AUDIO_FILE_MAX  0xffffffff
+#define RECORD_SAMPLERATE_8000_HZ   8000  //Hz
+#define RECORD_SAMPLERATE_11025_HZ  11025 //Hz
+#define RECORD_SAMPLERATE_12000_HZ  12000 //Hz
+#define RECORD_SAMPLERATE_16000_HZ  16000 //Hz
+#define RECORD_SAMPLERATE_22050_HZ  22050 //Hz
+#define RECORD_SAMPLERATE_24000_HZ  24000 //Hz
+#define RECORD_SAMPLERATE_32000_HZ  32000 //Hz
+#define RECORD_SAMPLERATE_44100_HZ  44100 //Hz
+#define RECORD_SAMPLERATE_48000_HZ  48000 //Hz
+
 
 #define RECORD_BEGIN   1
 #define RECORD_STOP   0
@@ -45,9 +58,13 @@ extern "C" {
 #define ORDERLIST    4
 
 #define MUSICLISTMAX  50
-#define RECORD_MSG_DATA 0
-#define RECORD_MSG_CMD 1
-#define RECORD_SAVE_BUF_SIZE (320 * 20)
+
+#define RECORD_CODE_SUCESS     0
+#define RECORD_CODE_ERR_NAME   1
+#define RECORD_CODE_THREADENABLE_FAILED   2
+#define RECORD_CODE_DISK_FULL   3
+#define RECORD_CODE_ERR_SAMPLERATE   4
+
 
 typedef void(*DFRobot_Audio_INT_CB)(int event);
 typedef struct playerCBConfig{
@@ -58,40 +75,37 @@ typedef struct playerCBConfig{
   DFRobot_Audio_INT_CB cb[9];
 }playerCBConfig_t;
 
-
-typedef struct recordMsg
-{
-    uint32_t type;
-    uint32_t arg;
-    uint32_t len;
-} recordMsg_t;
-
 typedef struct recordManager{
-  //rt_mq_t msg;
   int action;
- // struct rt_mempool mp;
   int sampleRate;
   int channel;
   String name;
-  //int mpBlockSize;
-  //int mpCnt;
-  //char *saveBuf;
-  //int saveLen;
 }recordManager_t;
-
-
-
-typedef struct record{
-  File entry;
-  uint8_t state;
-  String name;
-  uint32_t time;
-}sRecord_t, *pRecord_t;
 
 void playerEventFunction(int event, void *user_data);
 
 extern recordManager_t recorderManger;
 extern uint8_t recorderMangerFlag;
+
+typedef struct
+{
+  char      riffType[4];//4字节 'RIFF'标志
+  uint32_t  riffSize;  //4字节
+  char      waveType[4];//4字节 'WAVE'标志
+  char      formatType[4];//4字节 'fmt'标志
+  uint32_t  formatSize; //4字节，过渡字节(不定) 16,0,0,0
+  uint16_t  compressionCode;//2字节，格式类别 0x01,0x00
+  uint16_t  numChannels;//2字节，声道数
+  uint32_t  sampleRate;//4字节，采样率
+  uint32_t  bytesPerSecond;//4字节，位速
+  uint16_t  blockAlign;//2字节，一个采样多声道数据块大小
+  uint16_t  bitsPerSample;//2字节，一个采样占的位数
+  char      dataType1[4];//4字节，数据标记符"data"
+  uint32_t  dataSize;//4bytes,语音数据的长度，比文件长度小42字节（一般）
+  //44
+  //char      test[800];
+}sWavHeader_t, *pWavHeader_t;
+
 
 
 class DFRobot_Audio{
@@ -206,34 +220,31 @@ public:
   void attachEventInterrupt(int event, DFRobot_Audio_INT_CB cb);
   void detachEventInterrupt(int event);
   
-  void initRecorder(uint32_t sampleRate = 16000, int channel = 1);
+  void initRecorder(uint32_t sampleRate = 8000);
   /**
    * @brief 录音，并保存文件
-   * @param Filename 录音文件名
+   * @param Filename 录音文件名,是wav格式的音乐文件名
    */
   void record(const char *Filename);
   /**
    * @brief 录音控制
    * @param cmd 控制命令
    */
-  void recorderControl(uint8_t cmd);
+  uint8_t recorderControl(uint8_t cmd);
   
   
 protected:
-  //int micRead(void *buf, int size);
   
   
 private:
   String _musicPath;
   uint8_t _playMode;
-  uint32_t _recordLen;
-  sRecord_t _recorder;
+  uint8_t _recordCode;//
   rt_thread_t _tidRecorder;
-  File _musicDirRoot;
   SDClass *_sd;
   char *_musicDir;
   playerCBConfig_t _cbConfig;
-  char **_musicFullPath;
+
 };
 
 

@@ -19,7 +19,7 @@
 
 
 #include "Arduino.h"
-#include "spi_pub.h"
+#include "gpio_pub.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,32 +27,49 @@ extern "C" {
 
 void pinMode( uint32_t ulPin, uint32_t ulMode )
 {
-     if(ulPin > (DIGITAL_PIN_NUMS - 1)) return;
-     rt_pin_mode((rt_base_t)g_ADigitalPinMap[ulPin], (rt_base_t)ulMode);
-      //param = 0x2;
-        //spi_ctrl(CMD_SPI_SET_NSSID, (void *)&param);
+  if(ulPin >= PINS_COUNT) return;
+  if( g_APinDescription[ulPin].ulPinType == PIO_NOT_A_PIN ) return;
+  if(!(g_APinDescription[ulPin].ulAttribute & PIN_ATTR_DIGITAL)) return;
+  GPIO_INDEX pin_ = (GPIO_INDEX)g_APinDescription[ulPin].ulPin;
+  if(pin_ >= GPIONUM) return;
+  switch (ulMode)
+  {
+      case INPUT:
+          bk_gpio_config_input(pin_);
+          break;
+      
+      case OUTPUT:
+          bk_gpio_config_output(pin_);
+          break;
+      
+      case INPUT_PULLUP:
+          bk_gpio_config_input_pup(pin_);
+          break;
+      
+      case INPUT_PULLDOWN:
+          bk_gpio_config_input_pdwn(pin_);
+          break;
+  }
 }
 
 void digitalWrite( uint32_t ulPin, uint32_t ulVal )
 {
-      uint32_t param = 0;
-    if(ulPin > (DIGITAL_PIN_NUMS - 1)) return;
-    //if(g_ADigitalPinMap[ulPin] == 15){
-    //    rt_pin_write((rt_base_t)g_ADigitalPinMap[ulPin], (rt_base_t)ulVal);
-    //    if(ulVal)  param = 0x3;
-    //         else param = 0x2;
-    //    spi_ctrl(CMD_SPI_SET_NSSID, (void *)&param);
-   // }else{
-           rt_pin_write((rt_base_t)g_ADigitalPinMap[ulPin], (rt_base_t)ulVal);
-    //}
-    
-   
+  if(ulPin >= PINS_COUNT) return;
+  if( g_APinDescription[ulPin].ulPinType == PIO_NOT_A_PIN ) return;
+  if(!(g_APinDescription[ulPin].ulAttribute & PIN_ATTR_DIGITAL)) return;
+  GPIO_INDEX pin_ = (GPIO_INDEX)g_APinDescription[ulPin].ulPin;
+  if(pin_ >= GPIONUM) return;
+  bk_gpio_output(pin_, ulVal);
 }
 
 int digitalRead( uint32_t ulPin )
 {
-   if(ulPin > (DIGITAL_PIN_NUMS - 1)) return -1;
-   return rt_pin_read((rt_base_t) g_ADigitalPinMap[ulPin]);
+  if(ulPin >= PINS_COUNT) return -1;
+  if( g_APinDescription[ulPin].ulPinType == PIO_NOT_A_PIN ) return -1;
+  if(!(g_APinDescription[ulPin].ulAttribute & PIN_ATTR_DIGITAL)) return -1;
+  GPIO_INDEX pin_ = (GPIO_INDEX)g_APinDescription[ulPin].ulPin;
+  if(pin_ >= GPIONUM) return -1;
+  return bk_gpio_input(pin_);
 }
 
 #ifdef __cplusplus

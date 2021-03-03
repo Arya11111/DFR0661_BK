@@ -35,14 +35,14 @@ extern "C" {
 #define DEFAULT 1
 #define EXTERNAL 0
 
+typedef void (*voidFuncPtr)(void);
+void attachInterrupt(uint32_t pin, voidFuncPtr callback, uint32_t mode);
+void detachInterrupt(uint32_t pin);
+
 #ifdef __cplusplus
 }
 #endif
 
-typedef void (*voidFuncPtr)(void);
-void attachInterrupt_ISR(voidFuncPtr args);
-void attachInterrupt(uint32_t pin, void (*hdr)(void *args), uint32_t mode, void *args);
-void attachInterrupt(uint32_t pin, voidFuncPtr callback, uint32_t mode);
-void detachInterrupt(uint32_t pin);
+
 
 #endif

@@ -124,6 +124,7 @@ void rt_timer_timeout_sethook(void (*hook)(struct rt_timer *timer));
 
 /**@{*/
 
+
 /*
  * thread interface
  */

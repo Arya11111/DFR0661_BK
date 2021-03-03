@@ -24,7 +24,8 @@ extern "C"{
 #endif // __cplusplus
 
 #include "wiring_constants.h"
-
+ 
+#define  SystemCoreClock   26000000
 
 #define clockCyclesPerMicrosecond() ( SystemCoreClock / 1000000L )
 #define clockCyclesToMicroseconds(a) ( ((a) * 1000L) / (SystemCoreClock / 1000L) )
@@ -35,6 +36,8 @@ void yield( void ) ;
 /* sketch */
 void setup( void ) ;
 void loop( void ) ;
+
+
 
 #include "WVariant.h"
 
@@ -48,7 +51,6 @@ void loop( void ) ;
   #include "WString.h"
   // #include "Tone.h"
   #include "WMath.h"
-  #include "WInterrupts.h"
   #include "IPAddress.h"
 
   //#include "pulse.h"
@@ -62,11 +64,15 @@ void loop( void ) ;
 
 // Include board variant
 #include "variant.h"
+#ifdef GDL_PIN_INTERFACE
+void gdlInterfaceInit();
+#endif
 
 #include "wiring.h"
 #include "wiring_digital.h"
 #include "wiring_analog.h"
 #include "wiring_shift.h"
+ #include "WInterrupts.h"
 
 
 
@@ -106,7 +112,7 @@ void loop( void ) ;
 #define bit(b) (1UL << (b))
 
 #define digitalPinToPort(P)        ( &(NRF_GPIO[P]) )
-#define digitalPinToBitMask(P)     ( 1 << g_ADigitalPinMap[P] )
+//#define digitalPinToBitMask(P)     ( 1 << g_ADigitalPinMap[P] )
 //#define analogInPinToBit(P)        ( )
 #define portOutputRegister(port)   ( &(port->OUTSET) )
 #define portInputRegister(port)    ( &(port->IN) )

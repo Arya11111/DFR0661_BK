@@ -48,9 +48,26 @@ SPI四种模式，分别对应时钟相位(CPHA)，极性(CPOL)
 #define SPI_MODE3 0x03
 
 extern "C" {
+#include "include.h"
+#include "arm_arch.h"
+#include "typedef.h"
+#include "arm_arch.h"
+#include "icu_pub.h"
+
 #include "spi1.h"
 #include "spi_pub.h"
+
+#include "sys_ctrl_pub.h"
+
+#include "drv_model_pub.h"
+#include "mem_pub.h"
+#include "sys_config.h"
+#include "error.h"
+#include "bk_rtos_pub.h"
 }
+#define SPI_BUFFER_SIZE 1025
+#define SPI_PERI_CLK_26M        (26 * 1000 * 1000)
+#define SPI_PERI_CLK_DCO        (180 * 1000 * 1000)
 
 class SPISettings {
   public:
@@ -86,13 +103,11 @@ class SPISettings {
 
 class SPIClass {
 public:
-  SPIClass(){_dataWidth = 8;}
+  SPIClass();
   void begin(bool flag = false);
   byte transfer(uint8_t data);
   uint16_t transfer16(uint16_t data);
-  inline void transfer(void *buf, size_t count){
-      rt_spi_transfer(_spiDev, (uint8_t *)buf, NULL, count);
-  }
+  void transfer(void *buf, size_t count);
 
   // Transaction Functions
   void beginTransaction(SPISettings settings);
@@ -100,22 +115,42 @@ public:
 
   void end();
   void setBitOrder(uint8_t bitOrder);
-  void setBitWidth(uint8_t width);
   void setDataMode(uint8_t uc_mode);
   void setClockDivider(uint8_t uc_div);
-
+  void setFrequency(uint32_t freq);
+  
+protected:
+  void setClock(uint32_t maxHz);
+  
+  
 private:
   void init();
   void config(SPISettings settings);
-  bool initialized;
-  uint8_t interruptMode;
-  char interruptSave;
-  uint32_t interruptMask;
+  void initMasterEnable(bool val);
+  void spiMasterDeinit();
+  void spi_slave_set_cs_finish_interrupt(bool enable);
+  void spi_icu_configuration(bool enable);
+  void spi_gpio_configuration();
+  SPISettings _settings;
+  bool _initialized;
+/*
   struct rt_spi_configuration _cfg;
   struct rt_spi_device * _spiDev;
   uint8_t _dataWidth;
+*/
+  
 };
 
 extern SPIClass SPI;
+
+#define SPI_CLOCK_DIV2   2
+#define SPI_CLOCK_DIV3   3
+#define SPI_CLOCK_DIV4   4
+#define SPI_CLOCK_DIV5   5
+#define SPI_CLOCK_DIV6   6
+#define SPI_CLOCK_DIV7   7
+#define SPI_CLOCK_DIV8   8
+#define SPI_CLOCK_DIV9   9
+#define SPI_CLOCK_DIV10  10
 
 #endif

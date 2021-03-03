@@ -27,9 +27,9 @@ int WiFiServer::setTimeout(uint32_t seconds){
   struct timeval tv;
   tv.tv_sec = seconds;
   tv.tv_usec = 0;
-  if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval)) < 0)
+  if(lwip_setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval)) < 0)
     return -1;
-  return setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(struct timeval));
+  return lwip_setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(struct timeval));
 }
 
 size_t WiFiServer::write(const uint8_t *data, size_t len){
@@ -53,9 +53,9 @@ WiFiClient WiFiServer::available(){
   }
   if(client_sock >= 0){
     int val = 1;
-    if(setsockopt(client_sock, SOL_SOCKET, SO_KEEPALIVE, (char*)&val, sizeof(int)) == 0) {
+    if(lwip_setsockopt(client_sock, SOL_SOCKET, SO_KEEPALIVE, (char*)&val, sizeof(int)) == 0) {
       val = _noDelay;
-      if(setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (char*)&val, sizeof(int)) == 0)
+      if(lwip_setsockopt(client_sock, IPPROTO_TCP, TCP_NODELAY, (char*)&val, sizeof(int)) == 0)
         return WiFiClient(client_sock);
     }
   }
@@ -75,11 +75,11 @@ void WiFiServer::begin(uint16_t port){
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;
   server.sin_port = htons(_port);
-  if(bind(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0)
+  if(lwip_bind(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0)
     return;
-  if(listen(sockfd , _max_clients) < 0)
+  if(lwip_listen(sockfd , _max_clients) < 0)
     return;
-  fcntl(sockfd, F_SETFL, O_NONBLOCK);
+  lwip_fcntl(sockfd, F_SETFL, O_NONBLOCK);
   _listening = true;
   _noDelay = false;
   _accepted_sockfd = -1;

@@ -1,5 +1,5 @@
 #######################################
-# Syntax Coloring Map SD
+# Syntax Coloring Map SD W25Q
 #######################################
 
 #######################################
@@ -9,6 +9,8 @@
 SD	KEYWORD1	SD
 File	KEYWORD1	SD
 SDFile	KEYWORD1	SD
+W25Q	KEYWORD1
+W25QClass	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -29,3 +31,67 @@ size	KEYWORD2
 #######################################
 FILE_READ	LITERAL1
 FILE_WRITE	LITERAL1
+TYPE_ONBOARD_UD_SAMD	LITERAL1
+TYPE_NONBOARD_SD_MOUDLE	LITERAL1
+TYPE_ONBOARD_FLASH_BK7252	LITERAL1
+FLASH_CHIP_SELECT_PIN	LITERAL1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+readUniqueID	KEYWORD2
+readManufacterAndDeviceID	KEYWORD2
+readDeviceID	KEYWORD2
+readFlashCapacityByte	KEYWORD2
+readSR	KEYWORD2
+writeSR	KEYWORD2
+readFlash	KEYWORD2
+writeFlash	KEYWORD2
+eraseChip	KEYWORD2
+eraseSector	KEYWORD2
+eraseBlock32	KEYWORD2
+eraseBlock64	KEYWORD2
+eraseOrProgramSuspend	KEYWORD2
+eraseOrProgramResume	KEYWORD2
+writeEnable	KEYWORD2
+writeDisable	KEYWORD2
+powerDown	KEYWORD2
+releasePowerDown	KEYWORD2
+reset	KEYWORD2
+getSectorFirstAddr	KEYWORD2
+getBlock32FirstAddr	KEYWORD2
+getBlock64FirstAddr	KEYWORD2
+waitBusy	KEYWORD2
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+eSR_t	LITERAL1
+eStatusReg1	LITERAL1
+eStatusReg2	LITERAL1
+eStatusReg3	LITERAL1
+eWEMode_t	LITERAL1
+eNonVolMode	LITERAL1
+eVolMode	LITERAL1
+sSR1_t	LITERAL1
+sSR2_t	LITERAL1
+sSR3_t	LITERAL1
+W25Q_CHIP_CS_PIN	LITERAL1
+W25Q_CHIP_CS_INVAILD	LITERAL1
+W25Q_CHIP_CS_HIGH	LITERAL1
+W25Q_CHIP_CS_LOW	LITERAL1
+W25Q_PAGE_SIZE	LITERAL1
+W25Q_SECTOR_SIZE	LITERAL1
+W25Q_BLOCK_SIZE	LITERAL1
+W25Q_SECTOR_NUMBER	LITERAL1
+W25Q_BLOCK_ADDR_START	LITERAL1
+W25Q_BLOCK_NUMBER	LITERAL1
+W25Q_BLOCK_ADDR_END	LITERAL1
+

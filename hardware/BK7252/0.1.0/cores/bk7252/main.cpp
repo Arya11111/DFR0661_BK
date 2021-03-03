@@ -28,7 +28,6 @@
 //#include <dfs.h>
 //#include <dfs_fs.h>
 #include "easyflash.h"
-#include "ku.h"
 //#include "target_util_pub.h"
 
 #ifdef __cplusplus
@@ -48,7 +47,7 @@ extern "C" {
 #include "drv_uart.h"
 #include "drv_wdt.h"
 #include "drv_adc.h"
-#include "drv_spi.h"
+//#include "drv_spi.h"
 /////#include "drv_sdio_sd.h"
 #include <dfs.h>
 #include <dfs_romfs.h>
@@ -73,6 +72,36 @@ extern const struct romfs_dirent romfs_root;
  * \brief Main entry point of Arduino application
  */
  //extern int main(int argc, char **argv);
+
+#ifdef GDL_PIN_INTERFACE
+void gdlInterfaceInit(){
+   pinMode(GDL_PIN_BLK, OUTPUT);
+   pinMode(GDL_PIN_DC, OUTPUT);
+   pinMode(GDL_PIN_RES, OUTPUT);
+   pinMode(GDL_PIN_CS, OUTPUT);
+   pinMode(GDL_PIN_SDCS, OUTPUT);
+   pinMode(GDL_PIN_FCS, OUTPUT);
+   pinMode(GDL_PIN_TCS, OUTPUT);
+   pinMode(GDL_PIN_INT, OUTPUT);
+   pinMode(GDL_PIN_BUSY_TE, OUTPUT);
+   pinMode(GDL_PIN_X1, OUTPUT);
+   pinMode(GDL_PIN_X2, OUTPUT);
+   
+   digitalWrite(GDL_PIN_BLK, HIGH);
+   digitalWrite(GDL_PIN_DC, HIGH);
+   digitalWrite(GDL_PIN_RES, HIGH);
+   digitalWrite(GDL_PIN_CS, HIGH);
+   digitalWrite(GDL_PIN_SDCS, HIGH);
+   digitalWrite(GDL_PIN_FCS, HIGH);
+   digitalWrite(GDL_PIN_TCS, HIGH);
+   digitalWrite(GDL_PIN_INT, HIGH);
+   digitalWrite(GDL_PIN_BUSY_TE, HIGH);
+   digitalWrite(GDL_PIN_X1, HIGH);
+   digitalWrite(GDL_PIN_X2, HIGH);
+   
+}
+#endif
+
  
  
  static int wlan_app_init(void)
@@ -105,17 +134,17 @@ extern const struct romfs_dirent romfs_root;
     drv_iic2_init();
     rt_hw_wdt_init();
     drv_adc_init();
-    rt_hw_spi_device_init();
+    //rt_hw_spi_device_init();
     rt_audio_adc_hw_init();
     dfs_init();
-    rt_hw_gpio_init();
-    PWMInit();
-   rt_hw_sdcard_init();//SD卡初始化
+    //rt_hw_gpio_init();
+    //PWMInit();
+    rt_hw_sdcard_init();//SD卡初始化
     elm_init(); //文件系统初始化
-    //rt_hw_sys_ctrl_init();
+   // rt_hw_sys_ctrl_init();
     dfs_romfs_init();
     finsh_system_init();
-	beken_wlan_hw_init();
+    beken_wlan_hw_init();
     //beken_flash_init();
     //rt_hw_flash_disk_init();
     //rt_hw_gpio_init();
@@ -132,18 +161,18 @@ extern const struct romfs_dirent romfs_root;
     
     
     //drv_pwm_init();
-    if (dfs_mount(RT_NULL, "/", "rom", 0, (const void *)DFS_ROMFS_ROOT) == 0)
-    {
-        rt_kprintf("ROMFS File System initialized!\n");
-    }else
-    {
-        rt_kprintf("ROMFS File System initialized Failed!\n");
-    }
+   // if (dfs_mount(RT_NULL, "/", "rom", 0, (const void *)DFS_ROMFS_ROOT) == 0)
+   // {
+   //     rt_kprintf("ROMFS File System initialized!\n");
+    //}else
+    //{
+    //    rt_kprintf("ROMFS File System initialized Failed!\n");
+    //}
 	// rt_device_t sd = rt_device_find("sd0");
 	// const char *name;
     // name = dfs_filesystem_get_mounted_path(sd);
 	// if(name == NULL) rt_kprintf("no  mounit!\r\n");
-     if(dfs_mount("sd0", "/sd", "elm", 0, 0) == 0)
+     if(dfs_mount("sd0", "/", "elm", 0, 0) == 0)
          rt_kprintf("SD File System initialized!\n");
      else
          rt_kprintf("SD File System initialzation failed!\n");
@@ -158,7 +187,7 @@ extern const struct romfs_dirent romfs_root;
     rt_audio_codec_hw_init();
     rt_usbd_vcom_class_register();
     saradc_work_create(20);
-
+    
     USBDevice.init();
     USBDevice.attach();  
     //rt_hw_uart_init();
@@ -166,7 +195,7 @@ extern const struct romfs_dirent romfs_root;
    // rt_usbd_init();
     
     //rt_audio_codec_hw_init();
-    
+    //delay(1000);
     setup();
     for(;;){
         loop();

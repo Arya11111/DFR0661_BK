@@ -26,21 +26,19 @@
 extern "C" {
 #endif
 #include "saradc_intf.h"
-struct analogPWMArgs{
-  uint8_t channel;
-  uint32_t frequency;
-  uint32_t resolution;
-};
+#include "saradc.h"
+#include "icu_pub.h"
+#include "gpio_pub.h"
+#include "arm_arch.h"
+#include "saradc_pub.h"
+
+#include "pwm_pub.h"
+
 extern uint8_t getPinPWMChannel(uint8_t pin);
 extern void analogReference(uint8_t mode);
 extern void analogWrite( uint32_t ulPin, uint32_t ulValue );
 extern uint32_t analogRead( uint32_t ulPin );
-extern void analogReadResolution(int res);
-extern void analogWriteResolution(uint8_t pin,uint32_t res);
-extern void analogOutputInit( void );
-extern void setPWMFrequency(uint8_t pin, uint32_t freq_Hz);
-extern void PWMInit();
-extern void setPWMArguments(uint8_t pin, uint32_t freq_Hz, uint32_t res);
+extern void toneFrequency(uint32_t ulPin, uint32_t freq);
 
 
 #ifdef __cplusplus

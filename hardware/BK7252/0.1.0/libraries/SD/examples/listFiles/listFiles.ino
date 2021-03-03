@@ -1,53 +1,48 @@
-/*
-  Listfiles
-
- This example shows how print out the files in a
- directory on a SD card
-
- The circuit:
- * SD card attached to SPI bus as follows:
- ** MOSI - pin 11
- ** MISO - pin 12
- ** CLK - pin 13
- ** CS - pin 4 (for MKRZero SD: SDCARD_SS_PIN)
-
- created   Nov 2010
- by David A. Mellis
- modified 9 Apr 2012
- by Tom Igoe
- modified 2 Feb 2014
- by Scott Fitzgerald
-
- This example code is in the public domain.
-
+/*!
+ * @file listFiles.ino
+ * @brief The Listfiles of UD disk. 
+ * @n This example shows how print out the files in a directory on a UD disk file
+ *
+ * @copyright   Copyright (c) 2010 DFRobot Co.Ltd (http://www.dfrobot.com)
+ * @licence     The MIT License (MIT)
+ * @version  V1.0
+ * @date  2019-03-5
+ * @get from https://www.dfrobot.com
  */
-#include <SPI.h>
 #include <SD.h>
+
+#define NONBOARD_SD_MOUDLE_CS 2//spi 模块的cs引脚连接到BK7252的数字2引脚
+
 
 File root;
 
 void setup() {
   // Open serial communications and wait for port to open:
-  Serial.begin(9600);
-  while (!Serial) {
+  SerialUSB.begin(115200);
+  while (!SerialUSB) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
-  Serial.print("Initializing SD card...");
-
-  if (!SD.begin()) {
-    Serial.println("initialization failed!");
-    return;
+  //如果使用BK7252板载的sdio flash，初始化如下,注意sdio是不需要片选引脚的，这里是为了兼容官方的spi sd库
+  //你可以随便填数字，也可以填参数FLASH_CHIP_SELECT_PIN
+  SerialUSB.print("Initializing BK7252 SDIO flash...");
+  if (!SD.begin(/*csPin = */FLASH_CHIP_SELECT_PIN, /*type = */TYPE_ONBOARD_FLASH_BK7252)) {
+    SerialUSB.println("initialization failed!");
+    while(1);
   }
-  Serial.println("initialization done.");
-//opendir("/sd");
-//Serial.print("open = ");
-//Serial.println(fd_is_open("/sd"));
+  //如果外部连接spi SD卡模块，初始化如下
+  //SerialUSB.print("Initializing SD card...");
+  //if (!SD.begin(/*csPin = */NONBOARD_SD_MOUDLE_CS, /*type = */TYPE_NONBOARD_SD_MOUDLE)) {
+  //  SerialUSB.println("initialization failed!");
+  //  while(1);
+  //}
+  SerialUSB.println("initialization done.");
+
   root = SD.open("/");
+  Serial.println(root.name());
+  printDirectory(root, 1);
 
-  printDirectory(root, 0);
-
-  Serial.println("done!");
+  SerialUSB.println("done!");
 }
 
 void loop() {
@@ -56,26 +51,26 @@ void loop() {
 
 void printDirectory(File dir, int numTabs) {
   while (true) {
-//Serial.println("+++++++++++++++++++");
     File entry =  dir.openNextFile();
-    if (! entry) {
-     // Serial.println("AAAAAAAAAAAAAAAA");
+    if (!entry) {
       // no more files
       break;
     }
     for (uint8_t i = 0; i < numTabs; i++) {
-      Serial.print("\t");
+      SerialUSB.print('\t');
     }
-    Serial.print(entry.name());
+    SerialUSB.print(entry.name());
     if (entry.isDirectory()) {
-      Serial.println("/");
+      SerialUSB.println("/");
       printDirectory(entry, numTabs + 1);
     } else {
       // files have sizes, directories do not
-      Serial.print("\t\t");
-      Serial.println(entry.size(), DEC);
+      SerialUSB.print("\t\t");
+      SerialUSB.println(entry.size(), DEC);
     }
     entry.close();
   }
- // dir.close();
 }
+
+
+

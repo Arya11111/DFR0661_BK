@@ -117,6 +117,7 @@ protected:
 private:
   uint32_t epType[2];//用于存放2个端点的类型
   eSCSIState_t _scsiState;
+  uint32_t _errorBlock;
   struct ustorage_cbw _cbw;
   sMstorage_t _udData;
   static sSCSICmd_t _cmdData[11];

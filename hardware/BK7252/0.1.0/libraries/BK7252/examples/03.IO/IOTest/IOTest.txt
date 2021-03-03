@@ -1,0 +1,11 @@
+如何通过串口命令去操作IOTest.ino
+关键字+参数
+cmd1. 功能：数字，模拟，pwm
+命令示例：function:digital\r\n//代表选择数字功能
+          function:analog\r\n
+          function:pwm\r\n
+help
+
+digital: pinNumbers mode
+digital: 
+1.根据编号查找出正确的

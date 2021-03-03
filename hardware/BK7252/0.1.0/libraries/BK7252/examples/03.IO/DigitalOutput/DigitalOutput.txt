@@ -1,0 +1,8 @@
+digital mode=output pin=sda level=low
+digital mode=0 pin=sda level=low
+digital mode=output pin=sda level=high
+digital mode=0 pin=sda level=high
+SET_PIN_HIGH 
+SET_PIN_LOW 
+SET_PIN_INPUT
+READ_PIN_LEVEL 

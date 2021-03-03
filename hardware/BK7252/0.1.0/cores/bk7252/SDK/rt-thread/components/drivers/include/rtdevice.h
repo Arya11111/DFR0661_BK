@@ -52,7 +52,7 @@ extern "C" {
 #endif /* RT_USING_RTC */
 
 #ifdef RT_USING_SPI
-#include "drivers/spi1.h"
+//#include "drivers/spi1.h"
 #endif /* RT_USING_SPI */
 
 #ifdef RT_USING_MTD_NOR

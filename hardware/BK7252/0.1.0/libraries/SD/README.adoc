@@ -1,24 +1,51 @@
 = SD Library for Arduino =
 
-The SD library allows for reading from and writing to SD cards.
+The SD library allows for reading from and writing to extern SPIflash and connected spi module.<br>
 
-For more information about this library please visit us at
-http://www.arduino.cc/en/Reference/SD
+== Support ==
+1.FireBeetle M0's onboard sdio flash.
+2.spi SD module.
 
+This library is modified from Arduino's SD library,you can visit their at<br>
+http://www.arduino.cc/en/Reference/SD<br>
+Copyright (C) 2009 by William Greiman<br>
+Copyright (c) 2010 SparkFun Electronics<br>
+Copyright (c) 2010 DFRobot Co.Ltd<br>
 == License ==
-
- Copyright (C) 2009 by William Greiman
-Copyright (c) 2010 SparkFun Electronics
+GNU General Public License V3(Because sdfatlib is licensed with this.)<br>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+(at your option) any later version.<br>
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+GNU General Public License for more details.<br>
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+== 说明 ==
+这个库是在官方Arduino SD库的基础上更改的，是专门为DFRobot的FireBeetle BK7252主板服务的SD库，<br>
+BK7252板载了一个180M的SDIO flash，为了兼容更多用官方SD库写的第三方库，在BK的SDIO flash驱动上<br>
+我们直接更改了Arduino的官方SD库，使用户只需要在begin的时候改动参数，就可以选择是使用SPI SD模块<br>
+还是FireBeetle BK7252板载的SDIO flash来存储文件。
+例:<br>
+/**<br>
+ * @brief UD disk or SD card initialized.<br>
+ * @param csPin UD chip select pin.<br>
+ * @param type storage type example：TYPE_NONBOARD_SD_MOUDLE/TYPE_ONBOARD_FLASH_BK7252<br>
+ * @return Successfully returns true.<br>
+ */
+boolean begin(uint8_t csPin = FLASH_CHIP_SELECT_PIN, uint8_t type = TYPE_ONBOARD_FLASH_BK7252);<br>
+选择FireBeetle BK7252的板载SDIO flash:<br>
+SD.begin(/*csPin = */FLASH_CHIP_SELECT_PIN, /*type = */TYPE_ONBOARD_FLASH_BK7252)<br>
+
+
+选择FireBeetle BK7252外挂一个spi SD模块:<br>
+#define NONBOARD_SD_MOUDLE_CS 2<br>
+SD.begin(/*csPin = */NONBOARD_SD_MOUDLE_CS, /*type = */TYPE_NONBOARD_SD_MOUDLE)<br>
+注意:SDIO flash没有片选引脚，这里有是为了兼容官方的SPI SD库而设计的，你可以随便填任何数字<br>
+且兼容方面只兼容了File和SDClass类，这些方法可以通用，其他类的用法，不能用在SDIO flash上。<br>

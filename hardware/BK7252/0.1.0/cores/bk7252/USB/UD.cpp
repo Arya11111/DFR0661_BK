@@ -1,9 +1,12 @@
 #include "UD.h"
-
+extern "C" {
+#include "player.h"
+}
 
 #define UD_DATA_INTERFACE  pluggedInterface
 #define UD_ENDPOINT_IN  pluggedEndpoint
 #define UD_ENDPOINT_OUT  pluggedEndpoint + 1
+static uint8_t UDSTOPFLAG = 0;
 
 
 sSCSICmd_t  UDClass::_cmdData[11] = {
@@ -79,6 +82,7 @@ void UDClass::begin(void){
   }
   rt_kprintf("sector_count=%d, bytes_per_sector=%d, block_size=%d\n",_udData.geometry.sector_count,_udData.geometry.bytes_per_sector,_udData.geometry.block_size);
   _udData.status = SCSI_STAT_CBW;
+  UDSTOPFLAG = 0;
 }
 
 
@@ -137,17 +141,11 @@ void UDClass::handleEndpoint(int ep){
 
 int UDClass::epOutHandler(uint32_t ep){
   uint8_t epIndex = ep & 0x7f;
-  //rt_kprintf("len=%d, index=%d\n", p->len, p->index);
-  //_cbw = (struct ustorage_cbw*)(p->data+p->index);
-  //rt_kprintf("fun=%s,status=%d, ep=%d 0x%x, size=%d,%d\n",__func__, _udData.status,epIndex, _cbw.cb[0],size,sizeof(struct ustorage_cbw));
-  //rt_kprintf("fun=%s,status=%d\n",__func__, _udData.status);
   if(_udData.status == SCSI_STAT_CBW){
       pSCSICmd_t cmd;
-      pDataQueue_t p = usbDataDequeue(epIndex);
-      uint8_t size = p->len - p->index;
+      uint8_t *pBuf = (uint8_t *)&_cbw;
       int len;
-      memcpy(&_cbw, p->data+p->index, sizeof(struct ustorage_cbw) );
-      free(p);
+      uint8_t size = USBDevice.recv(epIndex, pBuf, sizeof(struct ustorage_cbw));
       if(_cbw.signature != CBW_SIGNATURE || size != SIZEOF_CBW)
       {
           //goto exit;
@@ -168,32 +166,33 @@ int UDClass::epOutHandler(uint32_t ep){
       //rt_kprintf("fun=%s,len=%d\n",__func__, len);
       if(len == 0){
           sendStatus();
+          if(UDSTOPFLAG == 1) rt_hw_cpu_reset();
       }
       return 0;
   }else if(_udData.status == SCSI_STAT_RECEIVE){
-      //rt_kprintf("SCSI_STAT_RECEIVE  data_reside=%d per_sec=%d\n", _udData.csw_response.data_reside,_udData.geometry.bytes_per_sector);
-      //uint32_t queueSize = getDataQueueTotalSize(epIndex);
-      //uint32_t actLen = (queueSize > _udData.csw_response.data_reside) ? _udData.csw_response.data_reside : queueSize;
-      //rt_kprintf("queueSize=%d, actLen=%d\n", queueSize, actLen);
+      if(USB_UD_TEMPOARY_FLAG + 1 > 255){
+          USB_UD_ENABLE_FLAG = 0;
+      }else{
+          USB_UD_ENABLE_FLAG = USB_UD_TEMPOARY_FLAG + 1;
+      }
       if(_udData.csw_response.data_reside){
-          uint32_t queueSize = getDataQueueTotalSize(epIndex);
-          uint32_t actLen = queueSize > (512 - _udData.epOutIndex) ? (512 - _udData.epOutIndex) : queueSize;
-         
-          if(actLen){
-              USBDevice.recv(epIndex, _udData.epOutBuf+_udData.epOutIndex, actLen);
-              _udData.epOutIndex += actLen;
-          }
-           //rt_kprintf("fun=%s, act=%d, que=%d index=%d %d\n",__func__, actLen, queueSize,_udData.epOutIndex, getDataQueueTotalSize(epIndex));
+          _udData.epOutIndex += USBDevice.recv(ep, _udData.epOutBuf+_udData.epOutIndex, 512 - _udData.epOutIndex);
           if(_udData.epOutIndex == 512){
               _udData.epOutIndex = 0;
-              rt_device_write(_udData.disk, _udData.block, _udData.epOutBuf, 1);
+              //rt_device_write(_udData.disk, _udData.block, _udData.epOutBuf, 1);
+              if(rt_device_write(_udData.disk, _udData.block, _udData.epOutBuf, 1) != 1){
+                  _udData.csw_response.status = 1;
+                  _errorBlock = _udData.block;
+              }
+                  
+              //rt_kprintf("size=%d\n", );
               memset(_udData.epOutBuf, 0, 512);
               _udData.csw_response.data_reside -= _udData.geometry.bytes_per_sector;
               _udData.block++;
           }
           if(_udData.csw_response.data_reside == 0){
               //rt_kprintf("fun1=%s, sendStatus\n", __func__);
-			  sendStatus();
+              sendStatus();
           }
       }else{
           //rt_kprintf("fun=%s, sendStatus\n", __func__);
@@ -201,15 +200,17 @@ int UDClass::epOutHandler(uint32_t ep){
       }
       return 0;
   }
-exit:
+  exit:
   //rt_kprintf("exit!\n");
   _udData.csw_response.status = 1;
   sendStatus();
   
   return -1;
+  
 }
 int UDClass::epInHandler(uint32_t ep){
   //rt_kprintf("fun=%s %d 0x%x\n",__func__,_udData.status, ep);
+  //rt_enter_critical();
   switch(_udData.status){
       case SCSI_STAT_CSW:
           _udData.status = SCSI_STAT_CBW;
@@ -219,6 +220,12 @@ int UDClass::epInHandler(uint32_t ep){
           sendStatus();
           break;
       case SCSI_STAT_SEND:
+          
+          if(USB_UD_TEMPOARY_FLAG + 1 > 255){
+              USB_UD_ENABLE_FLAG = 0;
+          }else{
+              USB_UD_ENABLE_FLAG = USB_UD_TEMPOARY_FLAG + 1;
+          }
           _udData.csw_response.data_reside -= _udData.epInIndex;
           _udData.epInIndex = 0;
           memset(_udData.epBuf, 0, _udData.geometry.bytes_per_sector);
@@ -226,7 +233,14 @@ int UDClass::epInHandler(uint32_t ep){
               _udData.count--;
               if(_udData.count){
                   _udData.block++;
-                  rt_device_read(_udData.disk, _udData.block, _udData.epBuf, 1);
+                  //rt_device_read(_udData.disk, _udData.block, _udData.epBuf, 1);
+                  uint32_t size = rt_device_read(_udData.disk, _udData.block, _udData.epBuf, 1);
+                  if(rt_device_read(_udData.disk, _udData.block, _udData.epBuf, 1) != 1){
+                      rt_kprintf("++read data error\n");
+                      memset(_udData.epBuf, 0, 512);
+                      _udData.csw_response.status = 1;
+                      _errorBlock = _udData.block - 1;
+                  }
                   _udData.epInIndex = _udData.geometry.bytes_per_sector;
                   USBDevice.sendControl(UD_ENDPOINT_IN, _udData.epBuf, _udData.epInIndex);
               }
@@ -235,17 +249,19 @@ int UDClass::epInHandler(uint32_t ep){
           }
 
   }
+  //rt_exit_critical();
   return 0;
 }
 
 
 int UDClass::testUnitReady(){
   //rt_kprintf("fun=%s\n",__func__);
+  //if(USB_UD_ENABLE_FLAG) USB_UD_ENABLE_FLAG = 2;
   _udData.csw_response.status = 0;
   return 0;
 }
 int UDClass::requestSense(){
-  rt_kprintf("fun=%s\n",__func__);
+  //rt_kprintf("fun=%s\n",__func__);
   pRequestSenseData_t buf = (pRequestSenseData_t)_udData.epBuf;
   buf->ErrorCode = 0x70;
   buf->Valid = 0;
@@ -279,12 +295,13 @@ int UDClass::inquiryCmd(){
   return _udData.cbDataSize;
 }
 int UDClass::allowRemoval(){
-  //rt_kprintf("fun=%s\n",__func__);
+  rt_kprintf("fun=%s\n",__func__);
   _udData.csw_response.status = 0;
   return 0;
 }
 int UDClass::startStop(){
-  //rt_kprintf("fun=%s\n",__func__);
+  rt_kprintf("fun=%s\n",__func__);
+  UDSTOPFLAG = 1;
   _udData.csw_response.status = 0;
   return 0;
 }
@@ -337,9 +354,19 @@ int UDClass::read10(){
   //rt_kprintf("fun=%s %d %d\n",__func__, _udData.geometry.sector_count, _udData.count);
   if(_udData.count  > _udData.geometry.sector_count) return 0;
   _udData.csw_response.data_reside = _udData.cbDataSize;
+  if(USB_UD_TEMPOARY_FLAG + 1 > 255){
+      USB_UD_ENABLE_FLAG = 0;
+  }else{
+      USB_UD_ENABLE_FLAG = USB_UD_TEMPOARY_FLAG + 1;
+  }
+  
+  
   uint32_t size = rt_device_read(_udData.disk, _udData.block, _udData.epBuf, 1);
   if(size == 0){
       rt_kprintf("read data error\n");
+      memset(_udData.epBuf, 0, 512);
+      _udData.csw_response.status = 1;
+      _errorBlock = _udData.block;
   }
   //rt_kprintf("fun=%s sector=%d size=%d, data_reside=%d\n",__func__, _udData.geometry.bytes_per_sector, size,_udData.csw_response.data_reside);
   USBDevice.sendControl(UD_ENDPOINT_IN, _udData.epBuf, 512);
@@ -350,22 +377,26 @@ int UDClass::read10(){
 int UDClass::write10(){
   _udData.block = _cbw.cb[2]<<24 | _cbw.cb[3]<<16 | _cbw.cb[4]<<8  | _cbw.cb[5]<<0;
   _udData.count = _cbw.cb[7]<<8 | _cbw.cb[8]<<0;
-  
   _udData.csw_response.data_reside = _cbw.xfer_len;
- 
+  
+  if(USB_UD_TEMPOARY_FLAG + 1 > 255){
+      USB_UD_ENABLE_FLAG = 0;
+  }else{
+      USB_UD_ENABLE_FLAG = USB_UD_TEMPOARY_FLAG + 1;
+  }
+  
   _udData.size = _udData.count * _udData.geometry.bytes_per_sector;
   _udData.epOutIndex = 0;
   _udData.status = SCSI_STAT_RECEIVE;
-  uint32_t queueSize = getDataQueueTotalSize(UD_ENDPOINT_OUT);
-  uint32_t actLen = 0;
-  if(queueSize){
-      uint32_t actLen = (queueSize > 512) ? 512 : queueSize;
-      USBDevice.recv(UD_ENDPOINT_OUT, _udData.epOutBuf+_udData.epOutIndex, actLen);
-      _udData.epOutIndex += actLen;
-  }
-  //rt_kprintf("fun=%s, queueSize=%d, actLen=%d, index=%d\n",__func__, queueSize, actLen,_udData.epOutIndex);
+  _udData.epOutIndex += USBDevice.recv(UD_ENDPOINT_OUT, _udData.epOutBuf, 512);
+
   if(_udData.epOutIndex == 512){
-      rt_device_write(_udData.disk, _udData.block, _udData.epOutBuf, 1);
+      if(rt_device_write(_udData.disk, _udData.block, _udData.epOutBuf, 1) != 1){
+          _udData.csw_response.status = 1;
+          _errorBlock = _udData.block;
+      }
+          //return _udData.csw_response.data_reside;
+      //rt_device_write(_udData.disk, _udData.block, _udData.epOutBuf, 1);
       _udData.csw_response.data_reside -= 512;
       _udData.block++;
       _udData.epOutIndex = 0;
@@ -515,11 +546,19 @@ bool UDClass::cbwVerify(pSCSICmd_t cmd){
 }
 
 void UDClass::sendStatus(){
-  //rt_kprintf("fun=%s\n",__func__);
+  //rt_kprintf("fun=%s %d, %d, %d %d\n",__func__,USB_UD_ENABLE_FLAG,_udData.csw_response.status, _udData.status,player_get_state());
   //_udData.epBuf = (uint8_t *)&_udData.csw_response;
   //memset(_udData.epBuf, 0, 512);
   
   USBDevice.sendControl(UD_ENDPOINT_IN, &_udData.csw_response, 13);
+  // if((USB_UD_ENABLE_FLAG == 1)&& (_udData.csw_response.status == 0)&&((_udData.status == SCSI_STAT_RECEIVE) || (_udData.status == SCSI_STAT_SEND))) {
+      // if(player_get_state() == 2){
+          // USB_UD_ENABLE_FLAG = 2;
+      // } else{
+          // USB_UD_ENABLE_FLAG = 0;
+      // }
+  // }
+      
   _udData.status = SCSI_STAT_CSW;
 }
 

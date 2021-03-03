@@ -186,6 +186,8 @@ typedef struct __attribute__((packed)) {
   EndpointDescriptor   in;
   EndpointDescriptor   out;
 } MSCDescriptor;
+extern uint8_t USB_UD_ENABLE_FLAG;
+extern uint8_t USB_UD_TEMPOARY_FLAG;
 
 #define D_DEVICE(_class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs) \
     { 18, 1, 0x200, _class,_subClass,_proto,_packetSize0,_vid,_pid,_version,_im,_ip,_is,_configs }

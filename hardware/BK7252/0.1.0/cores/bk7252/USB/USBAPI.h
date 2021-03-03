@@ -27,6 +27,7 @@
 #define EP0      0
 #define EPX_SIZE 64 // 64 for Full Speed, EPT size max is 1024
 
+
 #if defined __cplusplus
 
 #include "Stream.h"
@@ -66,10 +67,33 @@ extern "C"{
 #define USB_VENDOR_REQ_TYPE             2
 
 #define USBD_DEBUG //rt_kprintf
-#define USBD_DEBUG1 rt_kprintf
+#define USBD_DEBUG1 //rt_kprintf
 #define IN_EP_MAX_NUM    16
 #define OUT_EP_MAX_NUM   16
 
+
+
+
+#define USB_ENDPOINT_CACHE_SIZE 64
+#define USB_ENDPOINT_NUMBERS    16
+
+typedef struct{
+  uint8_t len;
+  uint8_t index;
+  uint8_t buf[USB_ENDPOINT_CACHE_SIZE];
+}sUsbEPAcheInfo_t, *pUsbEPAcheInfo_t;
+
+extern sUsbEPAcheInfo_t _usbEPCacheBuffer[USB_ENDPOINT_NUMBERS];
+void moveEPCache(uint8_t ep);
+uint8_t moveEPCacheLength(uint8_t ep, uint8_t length);
+uint8_t epCaheRemainSpace(uint8_t ep);//返回usb端点缓存的剩余空间
+uint8_t getEPCacheDataSize(uint8_t ep);
+void clearEPCache(uint8_t ep);
+
+uint8_t writeDataToUsbEPCache(uint8_t ep, void *data, uint8_t len);
+uint8_t writeRingDataToUsbEPCache(uint8_t ep, void *data, uint16_t &head, uint16_t &tail, uint16_t total);
+uint8_t readRingDataFromUsbEPCache(uint8_t ep, void *data, uint16_t &head, uint16_t &tail, uint16_t total);
+uint8_t readDataFromUsbEPCache(uint8_t ep, void *data, uint8_t len);
 
 struct dataQueue{
   struct dataQueue *next;
@@ -94,11 +118,11 @@ pDataQueue_t getDataQueueHead(uint8_t ep_id);
 void USB_SetHandler(void (*pf_isr)(void));
 typedef struct __attribute__((packed)) {
   union {
-      uint8_t request_type;
+      uint8_t request_type; //0x81
       struct {
-          uint8_t direction : 5;
-          uint8_t type : 2;
-          uint8_t transferDirection : 1;
+          uint8_t direction : 5; //1
+          uint8_t type : 2;  //0
+          uint8_t transferDirection : 1;//1
       };
   };
   uint8_t  bRequest;
@@ -106,6 +130,8 @@ typedef struct __attribute__((packed)) {
   uint16_t wIndex;
   uint16_t wLength;
 } USBSetup;
+
+//81 06 00 22 00 00 6F 00
 
 
 
@@ -153,16 +179,18 @@ public:
 
     // Generic EndPoint API
     void initEndpoints(void);
-
+  
+  uint8_t send(uint8_t ep);//////
     uint32_t send(uint32_t ep, const void *data, uint32_t len);
     void sendZlp(uint32_t ep);
     uint32_t recv(uint32_t ep, void *data, uint32_t len);
     int recv(uint32_t ep);
-    uint16_t recv(uint32_t ep, uint8_t *data, uint16_t &head, uint16_t &tail, uint16_t total);
+  uint16_t recv(uint8_t ep, uint8_t *data, uint16_t &head, uint16_t &tail, uint16_t total);
     uint32_t available(uint32_t ep);
     void flush(uint32_t ep);
     void clear(uint32_t ep);
     void stall(uint32_t ep);
+  
 
     // private?
     uint32_t armSend(uint32_t ep, const void *data, uint32_t len);

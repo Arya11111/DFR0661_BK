@@ -164,7 +164,7 @@ public:
 
     ~WiFiClientSocketHandle()
     {
-        close(sockfd);
+        lwip_close(sockfd);
     }
 
     int fd()
@@ -215,7 +215,7 @@ int WiFiClient::connect(IPAddress ip, uint16_t port, int32_t timeout)
         WIFI_WLAN_DEBUG("socket: %d", errno);
         return 0;
     }
-    fcntl( sockfd, F_SETFL, fcntl( sockfd, F_GETFL, 0 ) | O_NONBLOCK );
+    lwip_fcntl( sockfd, F_SETFL, lwip_fcntl( sockfd, F_GETFL, 0 ) | O_NONBLOCK );
 
     uint32_t ip_addr = ip;
     struct sockaddr_in serveraddr;
@@ -233,18 +233,18 @@ int WiFiClient::connect(IPAddress ip, uint16_t port, int32_t timeout)
     int res = lwip_connect(sockfd, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
     if (res < 0 && errno != EINPROGRESS) {
         WIFI_WLAN_DEBUG("connect on fd %d, errno: %d, \"%s\"", sockfd, errno, strerror(errno));
-        close(sockfd);
+        lwip_close(sockfd);
         return 0;
     }
 
     res = lwip_select(sockfd + 1, nullptr, &fdset, nullptr, timeout<0 ? nullptr : &tv);
     if (res < 0) {
         WIFI_WLAN_DEBUG("select on fd %d, errno: %d, \"%s\"", sockfd, errno, strerror(errno));
-        close(sockfd);
+        lwip_close(sockfd);
         return 0;
     } else if (res == 0) {
         //log_i("select returned due to timeout %d ms for fd %d", timeout, sockfd);
-        close(sockfd);
+        lwip_close(sockfd);
         return 0;
     } else {
         int sockerr;
@@ -253,18 +253,18 @@ int WiFiClient::connect(IPAddress ip, uint16_t port, int32_t timeout)
 
         if (res < 0) {
             WIFI_WLAN_DEBUG("getsockopt on fd %d, errno: %d, \"%s\"", sockfd, errno, strerror(errno));
-            close(sockfd);
+            lwip_close(sockfd);
             return 0;
         }
 
         if (sockerr != 0) {
             WIFI_WLAN_DEBUG("socket error on fd %d, errno: %d, \"%s\"", sockfd, sockerr, strerror(sockerr));
-            close(sockfd);
+            lwip_close(sockfd);
             return 0;
         }
     }
 
-    fcntl( sockfd, F_SETFL, fcntl( sockfd, F_GETFL, 0 ) & (~O_NONBLOCK) );
+   lwip_fcntl( sockfd, F_SETFL, lwip_fcntl( sockfd, F_GETFL, 0 ) & (~O_NONBLOCK) );
     clientSocketHandle.reset(new WiFiClientSocketHandle(sockfd));
     _rxBuffer.reset(new WiFiClientRxBuffer(sockfd));
     _connected = true;
@@ -286,7 +286,7 @@ int WiFiClient::connect(const char *host, uint16_t port, int32_t timeout)
 
 int WiFiClient::setSocketOption(int option, char* value, size_t len)
 {
-    int res = setsockopt(fd(), SOL_SOCKET, option, value, len);
+    int res = lwip_setsockopt(fd(), SOL_SOCKET, option, value, len);
     if(res < 0) {
         WIFI_WLAN_DEBUG("%X : %d", option, errno);
     }
@@ -307,7 +307,7 @@ int WiFiClient::setTimeout(uint32_t seconds)
 
 int WiFiClient::setOption(int option, int *value)
 {
-    int res = setsockopt(fd(), IPPROTO_TCP, option, (char *) value, sizeof(int));
+    int res = lwip_setsockopt(fd(), IPPROTO_TCP, option, (char *) value, sizeof(int));
     if(res < 0) {
         WIFI_WLAN_DEBUG("fail on fd %d, errno: %d, \"%s\"", fd(), errno, strerror(errno));
     }
@@ -354,7 +354,32 @@ int WiFiClient::read()
 
 size_t WiFiClient::write(const uint8_t *buf, size_t size)
 {
-    int res =0;
+  int socketFileDescriptor = fd();
+  size_t bytesRemaining = size;
+  int res;
+  int retry = WIFI_CLIENT_MAX_WRITE_RETRY;
+  size_t totalBytesSent = 0;
+  uint8_t *pBuf = (uint8_t *)buf;
+  if(!_connected || (socketFileDescriptor < 0)) return 0;
+  
+  while(retry){
+      retry--;
+      res = lwip_send(socketFileDescriptor, (void*) pBuf, bytesRemaining, MSG_DONTWAIT);
+      if(res > 0){
+          totalBytesSent += res;
+          pBuf += res;
+          if(totalBytesSent >= size){
+              retry = 0;
+              return totalBytesSent;
+          }
+      }else{
+          res = 0;
+          //retry = 0;
+      }
+  }
+  
+  return res;
+  /*int res =0;
     int retry = WIFI_CLIENT_MAX_WRITE_RETRY;
     int socketFileDescriptor = fd();
     size_t totalBytesSent = 0;
@@ -405,7 +430,7 @@ size_t WiFiClient::write(const uint8_t *buf, size_t size)
             }
         }
     }
-    return totalBytesSent;
+    return totalBytesSent;*/
 }
 
 size_t WiFiClient::write_P(PGM_P buf, size_t size)

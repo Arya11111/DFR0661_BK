@@ -1,0 +1,31 @@
+#######################################
+# Syntax Coloring Map DFRobot_Webcam
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Webcam	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+begin	KEYWORD2
+end	KEYWORD2
+snapshot	KEYWORD2
+setPicturePPIType	KEYWORD2
+setFramePerSeconds	KEYWORD2
+enableWebcam	KEYWORD2
+disableWebcam	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+sMjpegSession_t	LITERAL1
+pMjpegSession_t	LITERAL1
+PPI_TYPE_QVGA_320_240	LITERAL1
+PPI_TYPE_QVGA_640_480	LITERAL1
+EJPEG_TYPE_5FPS	LITERAL1
+EJPEG_TYPE_10FPS	LITERAL1
+EJPEG_TYPE_20FPS	LITERAL1

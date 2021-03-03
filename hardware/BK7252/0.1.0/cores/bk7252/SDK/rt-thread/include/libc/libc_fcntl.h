@@ -71,7 +71,9 @@
 #define _O_SYNC_     04010000
 #define O_RSYNC    04010000
 #define O_BINARY    0100000
+#ifndef O_DIRECTORY
 #define O_DIRECTORY 0200000
+#endif
 #define O_NOFOLLOW  0400000
 #define O_CLOEXEC  02000000
 

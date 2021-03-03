@@ -51,7 +51,7 @@ uint8_t WiFiUDP::begin(IPAddress address, uint16_t port){
   }
 
   int yes = 1;
-  if (setsockopt(udp_server,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(yes)) < 0) {
+  if (lwip_setsockopt(udp_server,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(yes)) < 0) {
       //log_e("could not set socket option: %d", errno);
       stop();
       return 0;
@@ -62,12 +62,12 @@ uint8_t WiFiUDP::begin(IPAddress address, uint16_t port){
   addr.sin_family = AF_INET;
   addr.sin_port = htons(server_port);
   addr.sin_addr.s_addr = (in_addr_t)address;
-  if(bind(udp_server , (struct sockaddr*)&addr, sizeof(addr)) == -1){
+  if(lwip_bind(udp_server , (struct sockaddr*)&addr, sizeof(addr)) == -1){
     //log_e("could not bind socket: %d", errno);
     stop();
     return 0;
   }
-  fcntl(udp_server, F_SETFL, O_NONBLOCK);
+  lwip_fcntl(udp_server, F_SETFL, O_NONBLOCK);
   return 1;
 }
 
@@ -81,7 +81,7 @@ uint8_t WiFiUDP::beginMulticast(IPAddress a, uint16_t p){
       struct ip_mreq mreq;
       mreq.imr_multiaddr.s_addr = (in_addr_t)a;
       mreq.imr_interface.s_addr = INADDR_ANY;
-      if (setsockopt(udp_server, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+      if (lwip_setsockopt(udp_server, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
           //log_e("could not join igmp: %d", errno);
           stop();
           return 0;
@@ -110,10 +110,10 @@ void WiFiUDP::stop(){
     struct ip_mreq mreq;
     mreq.imr_multiaddr.s_addr = (in_addr_t)multicast_ip;
     mreq.imr_interface.s_addr = (in_addr_t)0;
-    setsockopt(udp_server, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+    lwip_setsockopt(udp_server, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
     multicast_ip = IPAddress(INADDR_ANY);
   }
-  close(udp_server);
+  lwip_close(udp_server);
   udp_server = -1;
   
 }
@@ -150,7 +150,7 @@ int WiFiUDP::beginPacket(){
     return 0;
   }
 
-  fcntl(udp_server, F_SETFL, O_NONBLOCK);
+  lwip_fcntl(udp_server, F_SETFL, O_NONBLOCK);
 
   return 1;
 }
@@ -177,7 +177,7 @@ int WiFiUDP::endPacket(){
   recipient.sin_addr.s_addr = (uint32_t)remote_ip;
   recipient.sin_family = AF_INET;
   recipient.sin_port = htons(remote_port);
-  int sent = sendto(udp_server, tx_buffer, tx_buffer_len, 0, (struct sockaddr*) &recipient, sizeof(recipient));
+  int sent = lwip_sendto(udp_server, tx_buffer, tx_buffer_len, 0, (struct sockaddr*) &recipient, sizeof(recipient));
   if(sent < 0){
     //log_e("could not send data: %d", errno);
     return 0;
@@ -210,7 +210,7 @@ int WiFiUDP::parsePacket(){
   if(!buf){
     return 0;
   }
-  if ((len = recvfrom(udp_server, buf, 1460, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) == -1){
+  if ((len = lwip_recvfrom(udp_server, buf, 1460, MSG_DONTWAIT, (struct sockaddr *) &si_other, (socklen_t *)&slen)) == -1){
     delete[] buf;
     if(errno == EWOULDBLOCK){
       return 0;

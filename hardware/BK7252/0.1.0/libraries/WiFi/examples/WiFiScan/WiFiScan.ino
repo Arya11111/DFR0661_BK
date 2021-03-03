@@ -5,12 +5,11 @@
  * @licence     The MIT License (MIT)
  * @author [Arya](xue.peng@dfrobot.com)
  * @version  V1.0
- * @date  2019-10-11
+ * @date  2021-2-24
  * @get from https://www.dfrobot.com
  * @url
  */
-#include "WiFi.h"
-#include "IPAddress.h"
+#include <WiFi.h>
 
 void setup()
 {
@@ -44,18 +43,13 @@ void loop()
           Serial.print(WiFi.SSID(i));
           Serial.print(" (");
           Serial.print(WiFi.RSSI(i));
-          Serial.print(")");
-          Serial.print(" (");
+          Serial.print(") (");
           Serial.print(WiFi.BSSIDstr(i));
-          Serial.print(")");
-          Serial.print(" (");
+          Serial.print(") (");
           Serial.print(WiFi.channel(i));
-          Serial.print(")");
-          Serial.print(" (");
+          Serial.print(") (");
           Serial.print(WiFi.getEncryptionTypeInfo(WiFi.encryptionType(i)));
-          Serial.print(")");
-          Serial.println();
-         // Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+          Serial.println(")");
           delay(10);
       }
   }

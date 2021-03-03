@@ -45,7 +45,7 @@ enum
 
 #define USE_SPI_GPIO_14_17          (0)
 #define USE_SPI_GPIO_30_33          (1)
-#define USE_SPI_GPIO_NUM            USE_SPI_GPIO_14_17
+#define USE_SPI_GPIO_NUM            USE_SPI_GPIO_30_33
 #define SPI_FLASH_WP_GPIO_NUM       (GPIO18)
 #define SPI_FLASH_HOLD_GPIO_NUM     (GPIO19)
 

@@ -509,7 +509,7 @@ int lwip_fcntl(int s, int cmd, int val);
 #if LWIP_COMPAT_SOCKETS
 #if LWIP_COMPAT_SOCKETS != 2
 /** @ingroup socket */
-//#define accept(s,addr,addrlen)                    lwip_accept(s,addr,addrlen)
+#define accept(s,addr,addrlen)                    lwip_accept(s,addr,addrlen)
 /** @ingroup socket */
 #define bind(s,name,namelen)                      lwip_bind(s,name,namelen)
 /** @ingroup socket */

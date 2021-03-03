@@ -27,6 +27,7 @@
  */
 static void __empty() {
 	// Empty
+	rt_thread_yield();
 }
 void yield(void) __attribute__ ((weak, alias("__empty")));
 
